@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(npm run:*)",
+      "Bash(grep -rn --include=*.tsx --include=*.ts \"['''']\\\\\\(⚡\\\\|🦘\\\\|🏋\\\\|💪\\\\|🦵\\\\|📐\\\\|🏆\\\\|🏃\\\\|🎯\\\\|✓\\\\|📷\\\\\\)\" /Users/24SaniaG/Desktop/Athena/movement-coach/app /Users/24SaniaG/Desktop/Athena/movement-coach/components)",
+      "Bash(wait)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \":*)",
+      "Bash(grep:*)",
+      "Bash(curl -s -X POST http://localhost:3000/api/coaching -H \"Content-Type: application/json\" -d '{\"\"\"\"movementType\"\"\"\":\"\"\"\"squat\"\"\"\",\"\"\"\"detectedIssues\"\"\"\":[],\"\"\"\"scores\"\"\"\":{\"\"\"\"stability\"\"\"\":7,\"\"\"\"alignment\"\"\"\":8,\"\"\"\"risk\"\"\"\":3,\"\"\"\"breakdown\"\"\"\":{\"\"\"\"stability\"\"\"\":[],\"\"\"\"alignment\"\"\"\":[],\"\"\"\"risk\"\"\"\":[]}},\"\"\"\"topDeviatedJoints\"\"\"\":[],\"\"\"\"repCount\"\"\"\":5,\"\"\"\"duration\"\"\"\":30}')",
+      "Bash(node -e \"const m = require\\(''''/Users/24SaniaG/Desktop/Athena/movement-coach/node_modules/@google/genai/dist/index.js''''\\); console.log\\(Object.keys\\(m\\).slice\\(0,20\\)\\)\")",
+      "Bash(node:*)"
+    ]
+  }
+}

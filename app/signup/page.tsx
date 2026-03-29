@@ -1,0 +1,127 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { Activity, Eye, EyeOff } from 'lucide-react'
+import { motion } from 'framer-motion'
+
+export default function SignupPage() {
+  const router = useRouter()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSignup(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { name } },
+    })
+    if (error) { setError(error.message); setLoading(false) }
+    else { router.push('/onboarding') }
+  }
+
+  return (
+    <div className="min-h-screen bg-[#0b0b0f] flex items-center justify-center p-6">
+      {/* Ambient glows */}
+      <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute top-[-15%] right-[-10%] w-[45%] h-[45%] bg-[#00FF9D]/3 blur-[150px] rounded-full" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-[30%] h-[30%] bg-[#00FF9D]/2 blur-[120px] rounded-full" />
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-sm"
+      >
+        <div className="flex items-center gap-3 mb-12">
+          <div className="w-9 h-9 bg-[#00FF9D] rounded-xl flex items-center justify-center">
+            <Activity className="w-5 h-5 text-black" />
+          </div>
+          <span className="text-sm font-bold tracking-widest text-white uppercase font-mono">KINETIX</span>
+        </div>
+
+        <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Create your account.</h2>
+        <p className="text-white/40 text-sm mb-8">Start analyzing your movement today.</p>
+
+        <form onSubmit={handleSignup} className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-mono text-white/40 uppercase tracking-widest mb-2">Name</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#00FF9D]/40 transition-colors"
+              placeholder="Your name"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-mono text-white/40 uppercase tracking-widest mb-2">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#00FF9D]/40 transition-colors"
+              placeholder="athlete@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-mono text-white/40 uppercase tracking-widest mb-2">Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 pr-12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#00FF9D]/40 transition-colors"
+                placeholder="Min 6 characters"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div className="bg-red-950/40 border border-red-800/40 rounded-2xl px-4 py-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#00FF9D] hover:bg-[#00e88a] disabled:opacity-50 disabled:cursor-not-allowed text-black font-mono text-xs uppercase tracking-widest rounded-full px-4 py-3.5 transition-all shadow-lg shadow-black/40 mt-2"
+          >
+            {loading ? 'Creating account...' : 'Create Account'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-sm text-white/30 text-center">
+          Already have an account?{' '}
+          <Link href="/login" className="text-[#00FF9D] hover:text-[#00FF9D] transition-colors">
+            Sign in
+          </Link>
+        </p>
+      </motion.div>
+    </div>
+  )
+}
