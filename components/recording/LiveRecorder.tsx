@@ -320,8 +320,8 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
     <div className="space-y-3">
       {/* Main recording area */}
       <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-white/[0.08]">
-        {/* Hidden video element — only used as WebRTC source; canvas draws it */}
-        <video ref={videoRef} className="hidden" muted playsInline />
+        {/* Video element used as WebRTC source for canvas + MediaPipe — must not be display:none */}
+        <video ref={videoRef} className="absolute opacity-0 pointer-events-none w-0 h-0" muted playsInline />
         <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
 
         {/* Idle overlay */}
