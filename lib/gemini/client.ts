@@ -1,9 +1,9 @@
-'use client'
-
 import { GoogleGenAI } from '@google/genai'
 import { SYSTEM_PROMPT, buildAnalysisPrompt, type GeminiAnalysisInput } from './prompts'
 
 let genaiInstance: GoogleGenAI | null = null
+let lastCallTime = 0
+const COOLDOWN_MS = 10000 // 10 seconds between calls
 
 function getGenAI(): GoogleGenAI {
   if (!genaiInstance) {
@@ -15,11 +15,17 @@ function getGenAI(): GoogleGenAI {
 }
 
 export async function generateCoachingFeedback(input: GeminiAnalysisInput): Promise<string> {
+  const now = Date.now()
+  if (now - lastCallTime < COOLDOWN_MS) {
+    throw new Error('Please wait a moment before requesting feedback again.')
+  }
+  lastCallTime = now
+
   const genai = getGenAI()
   const prompt = buildAnalysisPrompt(input)
 
   const response = await genai.models.generateContent({
-    model: 'gemini-1.5-flash',
+    model: 'gemini-2.0-flash',
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     config: {
       systemInstruction: SYSTEM_PROMPT,

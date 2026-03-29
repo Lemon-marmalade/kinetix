@@ -1,5 +1,6 @@
 export const speakFeedback = async (text: string) => {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  // In Next.js client components, use NEXT_PUBLIC_ prefix
+  const apiKey = process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY || process.env.ELEVENLABS_API_KEY;
   const voiceId = "pNInz6obpg8ndclQU7nc"; // A clear, authoritative coaching voice
 
   if (!apiKey || apiKey === "undefined") {

@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { generateCoachingFeedback } from '@/lib/gemini/client'
+import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
 import type { Session } from '@/types'
 import IssueCard from '@/components/analysis/IssueCard'
@@ -17,11 +19,40 @@ interface SessionDetailClientProps {
 }
 
 export default function SessionDetailClient({ session }: SessionDetailClientProps) {
+  const supabase = createClient()
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null)
-  const [feedbackLoading] = useState(false)
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [liveFeedback, setLiveFeedback] = useState<string | null>(session.ai_feedback ?? null)
+  const [cooldown, setCooldown] = useState(false)
 
   const frames = session.pose_skeleton_summary ?? session.pose_data ?? []
   const hasVideo = !!session.video_url
+
+  const handleRegenerate = useCallback(async () => {
+    if (!session.scores || cooldown || feedbackLoading) return
+    setCooldown(true)
+    setFeedbackLoading(true)
+    try {
+      const feedback = await generateCoachingFeedback({
+        movementType: session.movement_type,
+        detectedIssues: session.detected_issues ?? [],
+        scores: session.scores,
+        topDeviatedJoints: [],
+        repCount: session.rep_count ?? 0,
+        duration: session.duration_seconds ?? 0,
+      })
+      setLiveFeedback(feedback)
+      await supabase
+        .from('sessions')
+        .update({ ai_feedback: feedback })
+        .eq('id', session.id)
+    } catch (err) {
+      console.error('Regenerate failed:', err)
+    } finally {
+      setFeedbackLoading(false)
+      setTimeout(() => setCooldown(false), 10000)
+    }
+  }, [session, supabase, cooldown, feedbackLoading])
 
   return (
     <div className="min-h-screen bg-[#050505]">
@@ -97,9 +128,9 @@ export default function SessionDetailClient({ session }: SessionDetailClientProp
           )}
 
           <AIFeedback
-            feedback={session.ai_feedback ?? null}
-            loading={feedbackLoading}
-            onRegenerate={() => {}}
+            feedback={liveFeedback}
+            loading={feedbackLoading || cooldown}
+            onRegenerate={handleRegenerate}
             onFeedbackReady={(text) => {
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('form:feedback-ready', {

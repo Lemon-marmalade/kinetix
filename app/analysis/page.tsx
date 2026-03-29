@@ -22,6 +22,7 @@ import ReferenceComparison from '@/components/analysis/ReferenceComparison'
 import ProgressBar from '@/components/upload/ProgressBar'
 import { cn } from '@/lib/utils'
 
+
 const PoseOverlay = dynamic(() => import('@/components/pose/PoseOverlay'), { ssr: false })
 const ScoreGauges = dynamic(() => import('@/components/analysis/ScoreGauges'), { ssr: false })
 
