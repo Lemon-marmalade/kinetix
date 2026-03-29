@@ -4,9 +4,8 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import type { PoseFrame, DetectedIssue, MovementType } from '@/types'
 import FrameScrubber from './FrameScrubber'
-import { Play, Pause, Eye, EyeOff, Ghost, Upload, Loader2, CheckCircle } from 'lucide-react'
+import { Play, Pause, Eye, EyeOff, Upload, Ghost, Loader2, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { extractPoseFromVideo } from '@/lib/pose/mediapipe'
 
 const PoseCanvas = dynamic(() => import('./PoseCanvas'), { ssr: false })
 
@@ -24,18 +23,16 @@ export default function PoseOverlay({
   movementType, onTimeChange,
 }: PoseOverlayProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const refInputRef = useRef<HTMLInputElement>(null)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showOverlay, setShowOverlay] = useState(true)
-  const [showIdeal, setShowIdeal] = useState(false)
   const [playbackRate, setPlaybackRate] = useState(1)
-
-  // Reference video state
   const [referenceFrames, setReferenceFrames] = useState<PoseFrame[]>([])
-  const [refStatus, setRefStatus] = useState<'idle' | 'processing' | 'ready'>('idle')
+  const [showIdeal, setShowIdeal] = useState(true)
+  const [refStatus, setRefStatus] = useState<'idle' | 'loading' | 'ready'>('idle')
   const [refProgress, setRefProgress] = useState(0)
-  const refInputRef = useRef<HTMLInputElement>(null)
 
   const flaggedJoints = new Set<number>(detectedIssues.flatMap(i => i.affectedJoints))
   const pulsedJoints = new Set<number>(
@@ -66,6 +63,40 @@ export default function PoseOverlay({
     if (videoRef.current) videoRef.current.playbackRate = playbackRate
   }, [playbackRate])
 
+  const handleReferenceFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    setRefStatus('loading')
+    setRefProgress(0)
+
+    try {
+      const { extractPoseFromVideo } = await import('@/lib/pose/mediapipe')
+      const url = URL.createObjectURL(file)
+      const refVideo = document.createElement('video')
+      refVideo.src = url
+      refVideo.muted = true
+      refVideo.playsInline = true
+      refVideo.crossOrigin = 'anonymous'
+
+      await new Promise<void>((resolve, reject) => {
+        refVideo.onloadedmetadata = () => resolve()
+        refVideo.onerror = reject
+        refVideo.load()
+      })
+
+      const frames = await extractPoseFromVideo(refVideo, (p) => setRefProgress(p))
+      URL.revokeObjectURL(url)
+
+      setReferenceFrames(frames)
+      setRefStatus('ready')
+      setShowIdeal(true)
+    } catch {
+      setRefStatus('idle')
+    }
+  }, [])
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current; if (!v) return
     v.paused ? v.play() : v.pause()
@@ -76,29 +107,6 @@ export default function PoseOverlay({
     v.currentTime = t; setCurrentTime(t)
     onTimeChange?.(t)
   }, [onTimeChange])
-
-  const handleReferenceFile = useCallback(async (file: File) => {
-    setRefStatus('processing')
-    setRefProgress(0)
-    try {
-      const blobUrl = URL.createObjectURL(file)
-      const videoEl = document.createElement('video')
-      videoEl.src = blobUrl
-      videoEl.muted = true
-      await new Promise<void>((res, rej) => {
-        videoEl.addEventListener('loadedmetadata', () => res())
-        videoEl.addEventListener('error', () => rej(new Error('Reference video failed to load')))
-        videoEl.load()
-      })
-      const rFrames = await extractPoseFromVideo(videoEl, p => setRefProgress(Math.round(p * 100)))
-      URL.revokeObjectURL(blobUrl)
-      setReferenceFrames(rFrames)
-      setRefStatus('ready')
-      setShowIdeal(true)  // auto-enable ideal overlay when reference is loaded
-    } catch {
-      setRefStatus('idle')
-    }
-  }, [])
 
   const rates = [0.25, 0.5, 1, 1.5, 2]
 
@@ -117,90 +125,89 @@ export default function PoseOverlay({
           onEnded={() => setIsPlaying(false)}
         />
 
-        {(showOverlay || showIdeal) && (
+        {showOverlay && (
           <PoseCanvas
             videoRef={videoRef}
             frames={frames}
-            referenceFrames={referenceFrames.length > 0 ? referenceFrames : undefined}
             flaggedJoints={flaggedJoints}
             pulsedJoints={pulsedJoints}
             showOverlay={showOverlay}
-            showIdeal={showIdeal}
             currentTime={currentTime}
-            duration={duration}
             movementType={movementType}
+            referenceFrames={referenceFrames}
+            showIdeal={showIdeal && refStatus === 'ready'}
           />
         )}
 
         {/* Legend */}
-        {(showOverlay || showIdeal) && (
-          <div className="absolute top-3 left-3 flex flex-col gap-1.5 pointer-events-none">
-            {showOverlay && (
-              <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-[10px] font-mono">
-                <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
-                <span className="text-zinc-300">Your skeleton</span>
-                <span className="w-2 h-2 rounded-full bg-red-400 inline-block ml-2" />
-                <span className="text-zinc-300">Flagged</span>
-                <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block ml-2" />
-                <span className="text-zinc-300">Active</span>
-              </div>
-            )}
-            {showIdeal && (
-              <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-[10px] font-mono">
-                <span className="w-2 h-2 rounded-full bg-white inline-block" />
-                <span className="text-zinc-300">
-                  {refStatus === 'ready' ? 'Reference video' : 'Ideal form'}
-                </span>
-              </div>
-            )}
+        {showOverlay && frames.length > 0 && (
+          <div className="absolute top-3 left-3 pointer-events-none">
+            <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm rounded-lg px-2.5 py-1.5 text-[10px] font-mono">
+              <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+              <span className="text-zinc-300">You</span>
+              <span className="w-2 h-2 rounded-full bg-red-400 inline-block ml-2" />
+              <span className="text-zinc-300">Flagged</span>
+              <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block ml-2" />
+              <span className="text-zinc-300">Active</span>
+              {refStatus === 'ready' && (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-violet-400 inline-block ml-2" />
+                  <span className="text-zinc-300">Ref</span>
+                </>
+              )}
+            </div>
           </div>
         )}
 
         {/* Controls — top right */}
-        <div className="absolute top-3 right-3 flex items-center gap-2">
-          {/* Reference upload */}
-          <div className="relative">
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          {/* Reference upload button */}
+          <input
+            ref={refInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={handleReferenceFile}
+          />
+
+          {refStatus === 'loading' && (
+            <div className="flex items-center gap-1.5 bg-black/70 backdrop-blur-sm border border-zinc-700 rounded-lg px-2.5 py-1.5">
+              <Loader2 className="w-3 h-3 text-violet-400 animate-spin" />
+              <span className="text-[10px] font-mono text-zinc-400">{Math.round(refProgress * 100)}%</span>
+            </div>
+          )}
+
+          {refStatus === 'ready' && (
             <button
-              onClick={() => refInputRef.current?.click()}
-              disabled={refStatus === 'processing'}
-              title="Upload reference video"
+              onClick={() => setShowIdeal(!showIdeal)}
+              title={showIdeal ? 'Hide reference' : 'Show reference'}
               className={cn(
-                'p-2 rounded-lg border backdrop-blur-sm transition-all text-xs flex items-center gap-1.5',
-                refStatus === 'ready'
-                  ? 'bg-green-600/80 border-green-500 text-white'
-                  : refStatus === 'processing'
-                  ? 'bg-zinc-800/80 border-zinc-600 text-zinc-400 cursor-not-allowed'
-                  : 'bg-black/60 border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500'
+                'p-2 rounded-lg border backdrop-blur-sm transition-all',
+                showIdeal
+                  ? 'bg-violet-600/70 border-violet-500 text-white'
+                  : 'bg-black/60 border-zinc-700 text-zinc-400 hover:text-white'
               )}
             >
-              {refStatus === 'processing'
-                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-[10px] font-mono hidden sm:inline">{refProgress}%</span></>
-                : refStatus === 'ready'
-                ? <><CheckCircle className="w-3.5 h-3.5" /><span className="text-[10px] font-mono hidden sm:inline">Ref loaded</span></>
-                : <><Upload className="w-3.5 h-3.5" /><span className="text-[10px] font-mono hidden sm:inline">Upload ref</span></>
-              }
+              <Ghost className="w-3.5 h-3.5" />
             </button>
-            <input
-              ref={refInputRef}
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={e => { const f = e.target.files?.[0]; if (f) handleReferenceFile(f) }}
-            />
-          </div>
+          )}
 
           <button
-            onClick={() => setShowIdeal(!showIdeal)}
-            title={showIdeal ? 'Hide ideal form' : 'Show ideal form'}
+            onClick={() => refInputRef.current?.click()}
+            title="Upload reference video"
             className={cn(
               'p-2 rounded-lg border backdrop-blur-sm transition-all',
-              showIdeal
-                ? 'bg-white/20 border-white/40 text-white'
+              refStatus === 'ready'
+                ? 'bg-black/60 border-zinc-700 text-zinc-400 hover:text-white'
                 : 'bg-black/60 border-zinc-700 text-zinc-400 hover:text-white'
             )}
           >
-            <Ghost className="w-3.5 h-3.5" />
+            {refStatus === 'ready'
+              ? <CheckCircle className="w-3.5 h-3.5 text-violet-400" />
+              : <Upload className="w-3.5 h-3.5" />
+            }
           </button>
+
           <button
             onClick={() => setShowOverlay(!showOverlay)}
             title={showOverlay ? 'Hide skeleton' : 'Show skeleton'}
@@ -255,7 +262,7 @@ export default function PoseOverlay({
                   playbackRate === r ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'
                 )}
               >
-                {r}×
+                {r}x
               </button>
             ))}
           </div>

@@ -9,34 +9,41 @@ export interface GeminiAnalysisInput {
   duration?: number
 }
 
-export const SYSTEM_PROMPT = `You are a sports biomechanics coach analyzing athlete movement data.
-Be specific, technical but accessible, and actionable. Focus on injury prevention and performance improvement.
-Keep your response concise: 3-5 sentences of coaching analysis, then 2-3 specific drill recommendations.`
+export const SYSTEM_PROMPT = `You are a warm, expert sports biomechanics coach giving post-session feedback.
+
+Your response must have exactly two sections with these exact headings on their own lines:
+
+WHAT YOU DID WELL
+Write 2 sentences of genuine, specific praise based on the scores and absence of issues.
+
+RECOMMENDATIONS
+Write 2 to 3 short, specific coaching cues to fix the detected issues. One sentence each.
+
+Rules: no markdown, no bullet points, no asterisks, no brackets. Plain conversational sentences only. Under 100 words total. Write as if speaking directly to the athlete.`
 
 export function buildAnalysisPrompt(input: GeminiAnalysisInput): string {
   const { movementType, detectedIssues, scores, topDeviatedJoints, repCount, duration } = input
 
-  const movementLabel = movementType === 'lateral_cut' ? 'Football Lateral Cut' : 'Jump Landing'
+  const movementLabel = movementType.replace(/_/g, ' ')
   const issuesSummary = detectedIssues.length === 0
     ? 'No significant issues detected.'
     : detectedIssues.map(i =>
-        `- ${i.type.replace(/_/g, ' ')} (${i.severity}): ${i.description} [joints: ${i.affectedJoints.join(', ')}]`
+        `- ${i.type.replace(/_/g, ' ')} (${i.severity}): ${i.description}`
       ).join('\n')
 
-  return `Movement Type: ${movementLabel}
-${repCount ? `Repetitions: ${repCount}` : ''}
+  return `Movement: ${movementLabel}
+${repCount ? `Reps completed: ${repCount}` : ''}
 ${duration ? `Duration: ${duration.toFixed(1)}s` : ''}
 
-BIOMECHANICAL SCORES (0-10):
-- Stability: ${scores.stability.toFixed(1)}/10
-- Alignment: ${scores.alignment.toFixed(1)}/10
-- Injury Risk: ${scores.risk.toFixed(1)}/10 (higher = more risk)
+SCORES (0-10):
+- Stability: ${scores.stability.toFixed(1)}
+- Alignment: ${scores.alignment.toFixed(1)}
+- Injury Risk: ${scores.risk.toFixed(1)} (higher = more risk)
 
-DETECTED ISSUES:
+ISSUES DETECTED:
 ${issuesSummary}
 
-TOP DEVIATED JOINTS FROM IDEAL REFERENCE:
-${topDeviatedJoints.join(', ')}
+${topDeviatedJoints.length ? `Joints most off from ideal: ${topDeviatedJoints.join(', ')}` : ''}
 
-Provide a coaching analysis followed by specific corrective drills.`
+Respond using the WHAT YOU DID WELL / RECOMMENDATIONS format from your instructions.`
 }

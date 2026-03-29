@@ -9,7 +9,6 @@ import { motion } from 'framer-motion'
 
 export default function LoginPage() {
   const router = useRouter()
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -20,73 +19,64 @@ export default function LoginPage() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      router.push('/dashboard')
-      router.refresh()
-    }
+    if (error) { setError(error.message); setLoading(false) }
+    else { router.push('/dashboard'); router.refresh() }
   }
 
   return (
-    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#0b0b0f] flex items-center justify-center p-6">
+      {/* Ambient glows */}
+      <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute top-[-15%] left-[-10%] w-[45%] h-[45%] bg-purple-700/20 blur-[150px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-purple-900/15 blur-[120px] rounded-full" />
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
+        className="w-full max-w-sm"
       >
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-            <Activity className="w-6 h-6 text-white" />
+        <div className="flex items-center gap-3 mb-12">
+          <div className="w-9 h-9 bg-purple-600 rounded-xl flex items-center justify-center">
+            <Activity className="w-5 h-5 text-white" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-widest text-white uppercase font-mono">FORM</h1>
-            <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">Sports Biomechanics</p>
-          </div>
+          <span className="text-sm font-bold tracking-widest text-white uppercase font-mono">FORM</span>
         </div>
 
-        <h2 className="text-2xl font-semibold text-white mb-2">Welcome back</h2>
-        <p className="text-zinc-400 text-sm mb-8">Sign in to your account to continue.</p>
+        <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Welcome back.</h2>
+        <p className="text-white/40 text-sm mb-8">Sign in to continue your training analysis.</p>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-xs font-mono text-zinc-400 uppercase tracking-widest mb-2">
-              Email
-            </label>
+            <label className="block text-[10px] font-mono text-white/40 uppercase tracking-widest mb-2">Email</label>
             <input
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 transition-colors"
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-purple-500/60 transition-colors"
               placeholder="athlete@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-mono text-zinc-400 uppercase tracking-widest mb-2">
-              Password
-            </label>
+            <label className="block text-[10px] font-mono text-white/40 uppercase tracking-widest mb-2">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 pr-12 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 transition-colors"
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 pr-12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-purple-500/60 transition-colors"
                 placeholder="••••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -94,7 +84,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="bg-red-950/50 border border-red-800 rounded-lg px-4 py-3 text-sm text-red-400">
+            <div className="bg-red-950/40 border border-red-800/40 rounded-2xl px-4 py-3 text-sm text-red-400">
               {error}
             </div>
           )}
@@ -102,24 +92,19 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-mono text-xs uppercase tracking-widest rounded-lg px-4 py-3 transition-colors"
+            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-mono text-xs uppercase tracking-widest rounded-full px-4 py-3.5 transition-all shadow-lg shadow-purple-900/40 mt-2"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="mt-6 text-sm text-zinc-500 text-center">
+        <p className="mt-6 text-sm text-white/30 text-center">
           Don&apos;t have an account?{' '}
           <Link href="/signup" className="text-purple-400 hover:text-purple-300 transition-colors">
             Sign up
           </Link>
         </p>
       </motion.div>
-
-      {/* Background decoration */}
-      <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-900/10 blur-[100px] rounded-full" />
-      </div>
     </div>
   )
 }

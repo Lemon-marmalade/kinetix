@@ -11,6 +11,7 @@ interface SessionState {
 
   // Pose data
   poseFrames: PoseFrame[]
+  hasLiveFrames: boolean   // true when frames came from live recording (skip re-extraction)
   repCount: number
   durationSeconds: number
 
@@ -26,6 +27,7 @@ interface SessionState {
   setVideoUrl: (url: string) => void
   setVideoBlobUrl: (url: string) => void
   setPoseFrames: (frames: PoseFrame[]) => void
+  setHasLiveFrames: (val: boolean) => void
   setRepCount: (count: number) => void
   setDuration: (seconds: number) => void
   setScores: (scores: Scores) => void
@@ -41,6 +43,7 @@ const initialState = {
   videoFile: null,
   videoBlobUrl: null,
   poseFrames: [],
+  hasLiveFrames: false,
   repCount: 0,
   durationSeconds: 0,
   scores: null,
@@ -57,6 +60,7 @@ export const useSessionStore = create<SessionState>((set) => ({
   setVideoUrl: (url) => set({ videoUrl: url }),
   setVideoBlobUrl: (url) => set({ videoBlobUrl: url }),
   setPoseFrames: (frames) => set({ poseFrames: frames }),
+  setHasLiveFrames: (val) => set({ hasLiveFrames: val }),
   setRepCount: (count) => set({ repCount: count }),
   setDuration: (seconds) => set({ durationSeconds: seconds }),
   setScores: (scores) => set({ scores }),

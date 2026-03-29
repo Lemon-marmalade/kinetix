@@ -7,7 +7,7 @@ import { TrendingUp, ShieldAlert, Target } from 'lucide-react'
 
 interface GaugeProps {
   label: string
-  value: number
+  value: number   // raw 0–10
   icon: React.ReactNode
   inverted?: boolean
   description: string
@@ -39,7 +39,7 @@ function Gauge({ label, value, icon, inverted = false, description, delay = 0 }:
     const run = (now: number) => {
       const p = Math.min((now - start) / dur, 1)
       const eased = 1 - Math.pow(1 - p, 3)
-      setDisplay(parseFloat((eased * value).toFixed(1)))
+      setDisplay(parseFloat((eased * value * 10).toFixed(0)))
       if (p < 1) frame = requestAnimationFrame(run)
     }
     const timer = setTimeout(() => { frame = requestAnimationFrame(run) }, delay)
@@ -48,8 +48,8 @@ function Gauge({ label, value, icon, inverted = false, description, delay = 0 }:
 
   const r = 38
   const circ = 2 * Math.PI * r
-  const dash = (display / 10) * circ
-  const color = scoreColor(display, inverted)
+  const dash = (display / 100) * circ
+  const color = scoreColor(value, inverted)
 
   return (
     <motion.div
@@ -57,7 +57,7 @@ function Gauge({ label, value, icon, inverted = false, description, delay = 0 }:
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: delay / 1000 }}
       className="rounded-2xl p-4 border border-zinc-800/60 flex flex-col items-center gap-3"
-      style={{ background: scoreBg(display, inverted) }}
+      style={{ background: scoreBg(value, inverted) }}
     >
       {/* Ring */}
       <div className="relative w-24 h-24">
@@ -70,8 +70,8 @@ function Gauge({ label, value, icon, inverted = false, description, delay = 0 }:
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xl font-bold text-white font-mono leading-none">{display.toFixed(1)}</span>
-          <span className="text-[9px] text-zinc-500 font-mono mt-0.5">/10</span>
+          <span className="text-xl font-bold text-white font-mono leading-none">{display}</span>
+          <span className="text-[9px] text-zinc-500 font-mono mt-0.5">/100</span>
         </div>
       </div>
 
@@ -81,8 +81,8 @@ function Gauge({ label, value, icon, inverted = false, description, delay = 0 }:
           <span className="w-3.5 h-3.5" style={{ color }}>{icon}</span>
           <span className="text-xs font-semibold text-zinc-200">{label}</span>
         </div>
-        <span className="text-[10px] font-mono rounded-full px-2 py-0.5" style={{ color, background: scoreBg(display, inverted) }}>
-          {scoreLabel(display, inverted)}
+        <span className="text-[10px] font-mono rounded-full px-2 py-0.5" style={{ color, background: scoreBg(value, inverted) }}>
+          {scoreLabel(value, inverted)}
         </span>
       </div>
       <p className="text-[10px] text-zinc-500 text-center leading-relaxed">{description}</p>
@@ -100,22 +100,22 @@ export default function ScoreGauges({ scores }: ScoreGaugesProps) {
           label="Stability"
           value={scores.stability}
           icon={<TrendingUp className="w-3.5 h-3.5" />}
-          description="Torso control + hip level throughout movement"
+          description="Torso control and hip level throughout the movement"
           delay={0}
         />
         <Gauge
           label="Alignment"
           value={scores.alignment}
           icon={<Target className="w-3.5 h-3.5" />}
-          description="Knee tracking, symmetry, joint alignment"
+          description="Knee tracking, joint symmetry, and alignment"
           delay={100}
         />
         <Gauge
-          label="Injury Risk"
+          label="Risk"
           value={scores.risk}
           inverted
           icon={<ShieldAlert className="w-3.5 h-3.5" />}
-          description="Composite risk from detected compensation patterns"
+          description="Composite injury risk from detected compensation patterns"
           delay={200}
         />
       </div>
@@ -131,7 +131,7 @@ export default function ScoreGauges({ scores }: ScoreGaugesProps) {
               <div className="flex justify-between items-center mb-1.5">
                 <span className="text-xs font-mono capitalize text-zinc-400">{key}</span>
                 <span className="text-xs font-mono font-bold" style={{ color: scoreColor(bd.value, inv) }}>
-                  {bd.value.toFixed(1)}
+                  {(bd.value * 10).toFixed(0)}/100
                 </span>
               </div>
               <div className="space-y-1">

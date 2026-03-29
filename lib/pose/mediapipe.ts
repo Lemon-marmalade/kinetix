@@ -1,6 +1,8 @@
 'use client'
 
 import type { PoseFrame } from '@/types'
+import { smoothPoseFrames } from './smoothing'
+import { loadMediapipePose } from './loadMediapipe'
 
 export interface MediaPipeConfig {
   modelComplexity?: 0 | 1 | 2
@@ -23,11 +25,10 @@ export async function extractPoseFromVideo(
 ): Promise<PoseFrame[]> {
   const cfg = { ...DEFAULT_CONFIG, ...config }
 
-  const { Pose } = await import('@mediapipe/pose')
-
+  const { Pose } = await loadMediapipePose()
   const pose = new Pose({
     locateFile: (file: string) =>
-      `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+      `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`,
   })
 
   pose.setOptions({
@@ -56,18 +57,21 @@ export async function extractPoseFromVideo(
   offscreenCanvas.height = processH
   const ctx = offscreenCanvas.getContext('2d')!
 
-  pose.onResults((results) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pose.onResults((results: any) => {
     if (results.poseLandmarks) {
       frames.push({
         timestamp: videoEl.currentTime,
         frameIndex: frames.length,
-        landmarks: results.poseLandmarks.map(lm => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        landmarks: results.poseLandmarks.map((lm: any) => ({
           x: lm.x,
           y: lm.y,
           z: lm.z ?? 0,
           visibility: lm.visibility ?? 1,
         })),
-        worldLandmarks: results.poseWorldLandmarks?.map(lm => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        worldLandmarks: results.poseWorldLandmarks?.map((lm: any) => ({
           x: lm.x,
           y: lm.y,
           z: lm.z ?? 0,
@@ -78,7 +82,9 @@ export async function extractPoseFromVideo(
   })
 
   const duration = videoEl.duration
-  const fps = 12  // 12fps gives ~360 frames for 30s video — good accuracy/perf balance
+  // 20fps gives ~600 frames for 30s video — tighter keyframe spacing reduces
+  // visible interpolation gaps and improves skeleton-to-video alignment.
+  const fps = 20
   const frameInterval = 1 / fps
   const totalFrames = Math.floor(duration * fps)
 
@@ -94,7 +100,11 @@ export async function extractPoseFromVideo(
   }
 
   await pose.close()
-  return frames
+
+  // Apply light EMA smoothing (α=0.65) to damp per-frame jitter.
+  // α=0.65 gives <1 frame of effective lag at 20fps, so the skeleton
+  // stays aligned with the video while removing noise spikes.
+  return smoothPoseFrames(frames)
 }
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {

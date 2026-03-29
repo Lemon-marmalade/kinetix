@@ -2,52 +2,42 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react'
 import type { PoseFrame, MovementType } from '@/types'
-import { renderSkeleton, renderIdealSkeleton, interpolateLandmarks } from './SkeletonRenderer'
+import { renderSkeleton, renderGhostSkeleton, interpolateLandmarks } from './SkeletonRenderer'
 import { LANDMARK_NAMES } from '@/lib/pose/angles'
-import { getIdealLandmarksForPose, interpolateRefFrames } from '@/lib/pose/idealPoses'
 
 interface PoseCanvasProps {
   videoRef: React.RefObject<HTMLVideoElement | null>
   frames: PoseFrame[]
-  referenceFrames?: PoseFrame[]   // custom uploaded reference video frames
   flaggedJoints?: Set<number>
   pulsedJoints?: Set<number>
   showOverlay: boolean
-  showIdeal: boolean
   currentTime: number
-  duration: number
   movementType: MovementType
+  referenceFrames?: PoseFrame[]
+  showIdeal?: boolean
 }
 
 /**
- * Compute where the video CONTENT is rendered inside the video element.
- * The element itself fills the container, but `object-contain` adds letterbox
- * or pillarbox bars, so landmarks must be mapped to the actual content area.
+ * Compute the actual video content rect inside an object-contain video element.
+ * Letterbox / pillarbox bars are accounted for so landmarks map correctly.
  */
 function getVideoBounds(vW: number, vH: number, cW: number, cH: number) {
   const vAR = vW / vH
   const cAR = cW / cH
   let renderW: number, renderH: number, offsetX: number, offsetY: number
   if (vAR > cAR) {
-    // Wider video → letterbox (bars top/bottom)
-    renderW = cW
-    renderH = cW / vAR
-    offsetX = 0
-    offsetY = (cH - renderH) / 2
+    renderW = cW; renderH = cW / vAR; offsetX = 0; offsetY = (cH - renderH) / 2
   } else {
-    // Taller video → pillarbox (bars left/right)
-    renderH = cH
-    renderW = cH * vAR
-    offsetX = (cW - renderW) / 2
-    offsetY = 0
+    renderH = cH; renderW = cH * vAR; offsetX = (cW - renderW) / 2; offsetY = 0
   }
   return { renderW, renderH, offsetX, offsetY }
 }
 
 export default function PoseCanvas({
-  videoRef, frames, referenceFrames,
+  videoRef, frames,
   flaggedJoints = new Set(), pulsedJoints = new Set(),
-  showOverlay, showIdeal, currentTime, duration, movementType,
+  showOverlay, currentTime, movementType,
+  referenceFrames = [], showIdeal = false,
 }: PoseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pulseRef = useRef<number>(0)
@@ -55,25 +45,20 @@ export default function PoseCanvas({
 
   // Mutable refs so the RAF loop always reads latest without restarting
   const framesRef = useRef(frames)
-  const refFramesRef = useRef(referenceFrames)
   const showOverlayRef = useRef(showOverlay)
-  const showIdealRef = useRef(showIdeal)
-  const movementTypeRef = useRef(movementType)
   const flaggedRef = useRef(flaggedJoints)
   const pulsedRef = useRef(pulsedJoints)
-  const durationRef = useRef(duration)
+  const refFramesRef = useRef(referenceFrames)
+  const showIdealRef = useRef(showIdeal)
 
   useEffect(() => { framesRef.current = frames }, [frames])
-  useEffect(() => { refFramesRef.current = referenceFrames }, [referenceFrames])
   useEffect(() => { showOverlayRef.current = showOverlay }, [showOverlay])
-  useEffect(() => { showIdealRef.current = showIdeal }, [showIdeal])
-  useEffect(() => { movementTypeRef.current = movementType }, [movementType])
   useEffect(() => { flaggedRef.current = flaggedJoints }, [flaggedJoints])
   useEffect(() => { pulsedRef.current = pulsedJoints }, [pulsedJoints])
-  useEffect(() => { durationRef.current = duration }, [duration])
+  useEffect(() => { refFramesRef.current = referenceFrames }, [referenceFrames])
+  useEffect(() => { showIdealRef.current = showIdeal }, [showIdeal])
 
-  const getLandmarksAtTime = useCallback((time: number) => {
-    const fs = framesRef.current
+  const getLandmarksAtTime = useCallback((time: number, fs: PoseFrame[]) => {
     if (!fs.length) return null
     let lo = 0, hi = fs.length - 1
     while (lo < hi) {
@@ -101,9 +86,6 @@ export default function PoseCanvas({
 
       const vW = video.videoWidth
       const vH = video.videoHeight
-
-      // Use the video element's CSS layout dimensions as canvas size.
-      // This means the canvas is displayed 1:1 — no CSS distortion.
       const cW = video.clientWidth
       const cH = video.clientHeight
 
@@ -112,37 +94,35 @@ export default function PoseCanvas({
         return
       }
 
-      if (canvas.width !== cW) canvas.width = cW
-      if (canvas.height !== cH) canvas.height = cH
-      ctx.clearRect(0, 0, cW, cH)
+      const dpr = window.devicePixelRatio || 1
+      if (canvas.width !== cW * dpr) canvas.width = cW * dpr
+      if (canvas.height !== cH * dpr) canvas.height = cH * dpr
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // Map landmarks to the actual video content area (inside object-contain bars)
       const { renderW, renderH, offsetX, offsetY } = getVideoBounds(vW, vH, cW, cH)
+      const t = video.currentTime
 
-      const videoTime = video.currentTime
-      const userLms = framesRef.current.length > 0 ? getLandmarksAtTime(videoTime) : null
-
-      ctx.save()
-      ctx.translate(offsetX, offsetY)
-
-      // Ideal / reference skeleton
-      if (showIdealRef.current && userLms) {
-        const refFrames = refFramesRef.current
-        let idealLms: ReturnType<typeof getLandmarksAtTime> = null
-
-        if (refFrames && refFrames.length > 0) {
-          // Use uploaded reference video at matching relative time
-          const t = durationRef.current > 0 ? videoTime / durationRef.current : 0
-          idealLms = interpolateRefFrames(refFrames, t)
-        } else {
-          // Phase-based synthetic ideal: reads user's actual joint angles
-          idealLms = getIdealLandmarksForPose(movementTypeRef.current, userLms)
-        }
-
-        if (idealLms) renderIdealSkeleton(ctx, idealLms, renderW, renderH, userLms)
+      // Normalize reference time: map user time onto reference duration
+      const refFs = refFramesRef.current
+      let refTime = t
+      if (refFs.length > 1) {
+        const refDur = refFs[refFs.length - 1].timestamp
+        const userDur = framesRef.current.length > 1 ? framesRef.current[framesRef.current.length - 1].timestamp : 1
+        refTime = userDur > 0 ? (t / userDur) * refDur : t
       }
 
-      // User skeleton
+      const userLms = framesRef.current.length > 0 ? getLandmarksAtTime(t, framesRef.current) : null
+      const refLms = showIdealRef.current && refFs.length > 0 ? getLandmarksAtTime(refTime, refFs) : null
+
+      ctx.save()
+      ctx.scale(dpr, dpr)
+      ctx.translate(offsetX, offsetY)
+
+      // Draw reference ghost skeleton first (behind user skeleton)
+      if (refLms) {
+        renderGhostSkeleton(ctx, refLms, renderW, renderH)
+      }
+
       if (showOverlayRef.current && userLms) {
         renderSkeleton(ctx, userLms, renderW, renderH, flaggedRef.current, pulsedRef.current, {}, pulseRef.current)
       }
@@ -165,22 +145,20 @@ export default function PoseCanvas({
     const rect = canvas.getBoundingClientRect()
     const vW = video.videoWidth || 640
     const vH = video.videoHeight || 480
-    const cW = canvas.width
-    const cH = canvas.height
+    // Use CSS dimensions (clientWidth/Height) so coords stay in CSS pixel space
+    const cW = canvas.clientWidth
+    const cH = canvas.clientHeight
 
     const { renderW, renderH, offsetX, offsetY } = getVideoBounds(vW, vH, cW, cH)
-
-    const scaleX = cW / rect.width
-    const scaleY = cH / rect.height
-    const mx = (e.clientX - rect.left) * scaleX - offsetX
-    const my = (e.clientY - rect.top) * scaleY - offsetY
+    const mx = (e.clientX - rect.left) - offsetX
+    const my = (e.clientY - rect.top) - offsetY
 
     if (mx < 0 || mx > renderW || my < 0 || my > renderH) {
       setHoveredJoint(null)
       return
     }
 
-    const lms = getLandmarksAtTime(currentTime)
+    const lms = getLandmarksAtTime(currentTime, framesRef.current)
     if (!lms) return
 
     for (let i = 0; i < lms.length; i++) {

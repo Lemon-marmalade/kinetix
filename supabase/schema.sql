@@ -15,7 +15,7 @@ create table if not exists public.profiles (
 create table if not exists public.sessions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references public.profiles(id) on delete cascade not null,
-  movement_type text not null check (movement_type in ('lateral_cut', 'jump_landing')),
+  movement_type text not null check (movement_type in ('lateral_cut', 'jump_landing', 'squat', 'deadlift', 'lunge', 'plank', 'overhead_press', 'sprint')),
   timestamp timestamptz default now(),
   video_url text,
   video_expires_at timestamptz,

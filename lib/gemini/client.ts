@@ -1,34 +1,26 @@
 'use client'
 
-import { GoogleGenAI } from '@google/genai'
-import { SYSTEM_PROMPT, buildAnalysisPrompt, type GeminiAnalysisInput } from './prompts'
+import type { GeminiAnalysisInput } from './prompts'
 
-let genaiInstance: GoogleGenAI | null = null
+export type { GeminiAnalysisInput }
 
-function getGenAI(): GoogleGenAI {
-  if (!genaiInstance) {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY
-    if (!apiKey) throw new Error('NEXT_PUBLIC_GEMINI_API_KEY is not set')
-    genaiInstance = new GoogleGenAI({ apiKey })
-  }
-  return genaiInstance
-}
-
+/**
+ * Calls the server-side /api/coaching route so the Gemini API key
+ * never appears in the browser bundle.
+ */
 export async function generateCoachingFeedback(input: GeminiAnalysisInput): Promise<string> {
-  const genai = getGenAI()
-  const prompt = buildAnalysisPrompt(input)
-
-  const response = await genai.models.generateContent({
-    model: 'gemini-1.5-flash',
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      temperature: 0.7,
-      maxOutputTokens: 512,
-    },
+  const res = await fetch('/api/coaching', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
   })
 
-  const text = response.text ?? ''
-  if (!text) throw new Error('Empty response from Gemini')
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error((body as { error?: string }).error ?? 'Feedback generation failed')
+  }
+
+  const { text } = await res.json() as { text: string }
+  if (!text) throw new Error('Empty feedback response')
   return text
 }

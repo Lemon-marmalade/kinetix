@@ -33,42 +33,6 @@ const DEFAULT_STYLE: Required<SkeletonStyle> = {
   jointRadius: 5,
 }
 
-/**
- * Scale and translate ideal skeleton to match the user's detected body
- * proportions and position, so the ghost overlay aligns correctly.
- */
-function scaleIdealToUser(ideal: PoseLandmark[], user: PoseLandmark[]): PoseLandmark[] {
-  const uLSh = user[11], uRSh = user[12]
-  const uLAnk = user[27], uRAnk = user[28]
-  const iLSh = ideal[11], iRSh = ideal[12]
-  const iLAnk = ideal[27], iRAnk = ideal[28]
-
-  if (!uLSh || !uRSh || !uLAnk || !uRAnk || !iLSh || !iRSh || !iLAnk || !iRAnk) return ideal
-
-  const uShX = (uLSh.x + uRSh.x) / 2
-  const uShY = (uLSh.y + uRSh.y) / 2
-  const uAnkY = (uLAnk.y + uRAnk.y) / 2
-  const uSpan = Math.abs(uAnkY - uShY)
-
-  const iShX = (iLSh.x + iRSh.x) / 2
-  const iShY = (iLSh.y + iRSh.y) / 2
-  const iAnkY = (iLAnk.y + iRAnk.y) / 2
-  const iSpan = Math.abs(iAnkY - iShY)
-
-  if (uSpan < 0.05 || iSpan < 0.001) return ideal
-
-  const scale = uSpan / iSpan
-  // Anchor: align shoulder midpoints
-  const ox = uShX - iShX * scale
-  const oy = uShY - iShY * scale
-
-  return ideal.map(lm => ({
-    x: lm.x * scale + ox,
-    y: lm.y * scale + oy,
-    z: lm.z,
-    visibility: lm.visibility,
-  }))
-}
 
 export function renderSkeleton(
   ctx: CanvasRenderingContext2D,
@@ -88,7 +52,7 @@ export function renderSkeleton(
   for (const [a, b] of POSE_CONNECTIONS) {
     const lmA = landmarks[a], lmB = landmarks[b]
     if (!lmA || !lmB) continue
-    if ((lmA.visibility ?? 1) < 0.25 || (lmB.visibility ?? 1) < 0.25) continue
+    if ((lmA.visibility ?? 1) < 0.5 || (lmB.visibility ?? 1) < 0.5) continue
 
     const isFlagged = flaggedJoints.has(a) || flaggedJoints.has(b)
     const isPulsedBone = pulsedJoints.has(a) && pulsedJoints.has(b)
@@ -120,7 +84,7 @@ export function renderSkeleton(
   // Draw joints
   for (let i = 0; i < landmarks.length; i++) {
     const lm = landmarks[i]
-    if (!lm || (lm.visibility ?? 1) < 0.25) continue
+    if (!lm || (lm.visibility ?? 1) < 0.5) continue
     const isKey = KEY_JOINTS.has(i)
     const isFlagged = flaggedJoints.has(i)
     const isPulsed = pulsedJoints.has(i)
@@ -171,26 +135,24 @@ export function renderSkeleton(
   ctx.restore()
 }
 
-/**
- * Render ideal "ghost" skeleton scaled to the user's detected body.
- * Pass userLandmarks to auto-scale/align the overlay.
- */
-export function renderIdealSkeleton(
+
+export const GHOST_STYLE: SkeletonStyle = {
+  boneColor: 'rgba(139,92,246,0.45)',
+  jointColor: 'rgba(167,139,250,0.55)',
+  flaggedColor: 'rgba(139,92,246,0.45)',
+  pulseColor: 'rgba(139,92,246,0)',
+  alpha: 0.55,
+  lineWidth: 2,
+  jointRadius: 4,
+}
+
+export function renderGhostSkeleton(
   ctx: CanvasRenderingContext2D,
   landmarks: PoseLandmark[],
   width: number,
   height: number,
-  userLandmarks?: PoseLandmark[]
 ) {
-  const scaled = userLandmarks ? scaleIdealToUser(landmarks, userLandmarks) : landmarks
-  renderSkeleton(ctx, scaled, width, height, new Set(), new Set(), {
-    boneColor: 'rgba(255,255,255,0.55)',
-    jointColor: 'rgba(255,255,255,0.75)',
-    flaggedColor: 'rgba(255,255,255,0.75)',
-    alpha: 0.65,
-    lineWidth: 2,
-    jointRadius: 4,
-  })
+  renderSkeleton(ctx, landmarks, width, height, new Set(), new Set(), GHOST_STYLE, 0)
 }
 
 export function interpolateLandmarks(a: PoseLandmark[], b: PoseLandmark[], t: number): PoseLandmark[] {

@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Skip heavy mediapipe packages from webpack processing — loaded from CDN at runtime
   experimental: {
-    serverComponentsExternalPackages: ['@mediapipe/pose'],
+    optimizePackageImports: ['framer-motion', 'lucide-react'],
   },
   webpack: (config, { isServer }) => {
     if (!isServer) {
@@ -11,10 +12,10 @@ const nextConfig = {
         fs: false,
         net: false,
         tls: false,
-      };
+      }
     }
-    return config;
+    return config
   },
-};
+}
 
 export default nextConfig;

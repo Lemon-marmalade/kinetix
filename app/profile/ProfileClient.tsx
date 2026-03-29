@@ -28,9 +28,9 @@ const SPORTS = ['Football', 'Basketball', 'Soccer', 'Tennis', 'Track', 'Weightli
 const BODY_PARTS = ['Knee', 'Ankle', 'Hip', 'Lower Back', 'Shoulder', 'Hamstring', 'Quad', 'Calf', 'Wrist', 'Elbow', 'Neck']
 const INJURY_TYPES = ['Sprain', 'Strain', 'Tear (Partial)', 'Tear (Complete)', 'Tendinopathy', 'Stress Fracture', 'Dislocation', 'Contusion', 'Other']
 
-const MOVEMENT_ICONS: Record<string, string> = {
-  lateral_cut: '⚡', jump_landing: '🦘', squat: '🏋️', deadlift: '💪',
-  lunge: '🦵', plank: '📐', overhead_press: '🏆', sprint: '🏃',
+const MOVEMENT_ABBR: Record<string, string> = {
+  lateral_cut: 'CUT', jump_landing: 'LAND', squat: 'SQ', deadlift: 'DL',
+  lunge: 'LNG', plank: 'PLK', overhead_press: 'OHP', sprint: 'SPR',
 }
 
 function computeHealthScore(sessions: Partial<Session>[]): number {
@@ -69,13 +69,19 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
   const [showAddInjury, setShowAddInjury] = useState(false)
   const [newInjury, setNewInjury] = useState<Partial<PastInjury>>({ recovered: false })
   const [historyFilter, setHistoryFilter] = useState<string>('all')
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const healthScore = computeHealthScore(sessions)
 
   const handleSave = async () => {
     setSaving(true)
-    await supabase.from('profiles').update({ ...form, past_injuries: injuries }).eq('id', profile.id)
+    setSaveError(null)
+    const { error } = await supabase.from('profiles').update({ ...form, past_injuries: injuries }).eq('id', profile.id)
     setSaving(false)
+    if (error) {
+      setSaveError(error.message)
+      return
+    }
     setEditing(false)
     router.refresh()
   }
@@ -144,13 +150,18 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
         </div>
         {activeTab === 'overview' && (
           editing ? (
-            <div className="flex items-center gap-2">
-              <button onClick={() => setEditing(false)} className="text-xs font-mono text-zinc-500 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
-                Cancel
-              </button>
-              <button onClick={handleSave} disabled={saving} className="text-xs font-mono bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50">
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+            <div className="flex flex-col items-end gap-1">
+              {saveError && (
+                <p className="text-[10px] text-red-400 font-mono max-w-xs text-right">{saveError}</p>
+              )}
+              <div className="flex items-center gap-2">
+                <button onClick={() => { setEditing(false); setSaveError(null) }} className="text-xs font-mono text-zinc-500 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleSave} disabled={saving} className="text-xs font-mono bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
           ) : (
             <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-white transition-colors">
@@ -457,7 +468,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(movCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
                           <div key={type} className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800/60 border border-zinc-700/50 rounded-lg">
-                            <span>{MOVEMENT_ICONS[type] ?? '🎯'}</span>
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">{MOVEMENT_ABBR[type] ?? 'MOV'}</span>
                             <span className="text-xs text-zinc-300 capitalize">{type.replace(/_/g, ' ')}</span>
                             <span className="text-[10px] font-mono text-zinc-500">{count}×</span>
                           </div>
@@ -467,6 +478,14 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                   )}
                 </div>
               )}
+
+              {/* ── Personalized Insights ── */}
+              <PersonalizedInsights
+                sport={profile.sport ?? null}
+                fitnessLevel={profile.fitness_level ?? null}
+                injuries={injuries}
+                topIssues={topIssues.map(([type]) => type)}
+              />
             </motion.div>
           )}
 
@@ -510,7 +529,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                         transition={{ delay: i * 0.04 }}
                         className="flex items-center gap-4 bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700 rounded-xl p-3.5 transition-all group cursor-pointer"
                       >
-                        <div className="text-xl">{MOVEMENT_ICONS[session.movement_type ?? ''] ?? '🎯'}</div>
+                        <div className="text-[10px] font-mono font-bold px-2 py-1 rounded bg-zinc-800 text-zinc-400">{MOVEMENT_ABBR[session.movement_type ?? ''] ?? 'MOV'}</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
                             <span className="text-xs font-semibold text-zinc-200 capitalize">
@@ -618,6 +637,184 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
 
         </AnimatePresence>
       </main>
+    </div>
+  )
+}
+
+// ─── Personalized Insights ───────────────────────────────────────────────────
+
+const SPORT_EXERCISES: Record<string, string[]> = {
+  Football: ['Single-leg RDL', 'Lateral band walks', 'Hip flexor stretches', 'Reactive agility drills', 'Nordic hamstring curls'],
+  Basketball: ['Ankle stability drills', 'Jump-landing mechanics', 'Hip abductor strengthening', 'Thoracic spine rotation', 'Deceleration training'],
+  Soccer: ['Hip mobility flows', 'Single-leg balance', 'Glute activation (clamshells)', 'Ankle proprioception drills', 'Core anti-rotation (Pallof press)'],
+  Tennis: ['Rotator cuff strengthening', 'Forearm wrist stability', 'Lateral hip mobility', 'Thoracic rotation', 'Split-stance RDL'],
+  Track: ['Posterior chain activation', 'Ankle dorsiflexion mobility', 'Hip drive drills', 'Single-leg calf raises', 'Sprint mechanics drills'],
+  Weightlifting: ['Ankle and hip mobility', 'Overhead squat mobility', 'Thoracic extension', 'Glute/hip activation', 'Wrist flexibility drills'],
+  CrossFit: ['Overhead mobility (lats, pecs)', 'Hip flexor stretches', 'Ankle dorsiflexion', 'Scapular stability', 'Core bracing mechanics'],
+  Baseball: ['Rotator cuff integrity work', 'Thoracic rotation', 'Hip mobility', 'Single-leg stability', 'Elbow flexor/extensor balance'],
+  Swimming: ['Shoulder internal rotation stretch', 'Rotator cuff strengthening', 'Hip flexor release', 'Thoracic mobility', 'Core stability planks'],
+  Cycling: ['Hip flexor stretching', 'Quad/hamstring balance', 'Glute activation', 'Lumbar mobility', 'IT band release'],
+}
+
+const ISSUE_FIXES: Record<string, string[]> = {
+  knee_valgus: ['Lateral band walks', 'Clamshells', 'Single-leg squats', 'Glute med strengthening'],
+  forward_lean: ['Hip flexor stretches', 'Thoracic extension', 'Ankle dorsiflexion mobility', 'Romanian deadlifts'],
+  pelvic_tilt: ['Glute bridges', 'Dead bugs', 'Hip flexor release', 'Anterior core bracing'],
+  ankle_eversion: ['Single-leg balance', 'Peroneal strengthening', 'Ankle stability drills', 'Arch activation'],
+  shoulder_elevation: ['Shoulder blade depression drills', 'Lower trap activation', 'Neck/upper trap stretch', 'Face pulls'],
+  trunk_rotation: ['Anti-rotation core work', 'Pallof press', 'Oblique stability', 'Hip mobility'],
+  hip_drop: ['Glute med strengthening', 'Lateral band walks', 'Single-leg stance progressions', 'TFL stretching'],
+  head_forward: ['Chin tucks', 'Deep neck flexor activation', 'Thoracic extension', 'Pec stretching'],
+}
+
+const INJURY_PROTOCOLS: Record<string, { title: string; items: string[] }> = {
+  Knee: {
+    title: 'Knee Rehabilitation',
+    items: ['RICE protocol (acute phase)', 'VMO strengthening (terminal knee extensions)', 'Quad sets and straight-leg raises', 'Gradual weight-bearing progressions', 'Avoid valgus loading patterns'],
+  },
+  Ankle: {
+    title: 'Ankle Rehabilitation',
+    items: ['Single-leg balance progressions', 'Peroneal and tibialis strengthening', 'Ankle alphabet mobility', 'Gradual return-to-sport loading', 'Proprioception board training'],
+  },
+  Hip: {
+    title: 'Hip Rehabilitation',
+    items: ['Glute activation (bridges, clamshells)', 'Hip flexor stretching', 'Core stability work', 'Avoid deep hip flexion until pain-free', 'Gradual hip hinge loading'],
+  },
+  'Lower Back': {
+    title: 'Lower Back Rehabilitation',
+    items: ['Lumbar stabilization exercises', 'Cat-cow mobility', 'Dead bug / bird dog', 'Avoid loaded spinal flexion acutely', 'Strengthen glutes and core to offload spine'],
+  },
+  Shoulder: {
+    title: 'Shoulder Rehabilitation',
+    items: ['Rotator cuff activation (band work)', 'Scapular stability exercises', 'Pendulum mobilizations (acute)', 'Gradual overhead loading', 'Avoid impingement angles early'],
+  },
+  Hamstring: {
+    title: 'Hamstring Rehabilitation',
+    items: ['Isometric holds in pain-free range', 'Nordic hamstring progressions (sub-maximal)', 'Eccentric loading later stage', 'Hip hinge mobility', 'Avoid maximal sprint efforts until full strength'],
+  },
+  Quad: {
+    title: 'Quad Rehabilitation',
+    items: ['Terminal knee extensions', 'Short arc quads', 'Cycling for low-impact loading', 'Gradual squat depth progressions', 'Patellar mobility work'],
+  },
+  Calf: {
+    title: 'Calf Rehabilitation',
+    items: ['Eccentric heel drops (Alfredson protocol for tendinopathy)', 'Ankle dorsiflexion mobility', 'Gradual running return', 'Avoid sudden increases in volume', 'Foot-strike biomechanics review'],
+  },
+  Wrist: {
+    title: 'Wrist Rehabilitation',
+    items: ['Wrist flexor/extensor stretching', 'Grip strengthening progressions', 'Rice bucket exercises', 'Avoid loaded wrist extension acutely', 'Forearm strengthening'],
+  },
+  Elbow: {
+    title: 'Elbow Rehabilitation',
+    items: ['Eccentric wrist curls (lateral epicondylitis)', 'Forearm stretching', 'Grip strengthening', 'Avoid valgus stress positions', 'Gradual throwing/pushing progressions'],
+  },
+}
+
+const FITNESS_NOTES: Record<string, string> = {
+  beginner: 'Focus on movement quality over load. Master bodyweight patterns before adding resistance. 2–3 sessions/week with full recovery.',
+  intermediate: 'Progressive overload is key. Periodize training with deload weeks. Address mobility gaps before they become injuries.',
+  advanced: 'Fine-tune mechanics at high intensities. Use video review for each session. Prioritize recovery — CNS fatigue is real.',
+  elite: 'Marginal gains matter. Address bilateral asymmetries immediately. Monitor HRV and soreness trends alongside session data.',
+}
+
+interface InsightsProps {
+  sport: string | null
+  fitnessLevel: string | null
+  injuries: PastInjury[]
+  topIssues: string[]
+}
+
+function PersonalizedInsights({ sport, fitnessLevel, injuries, topIssues }: InsightsProps) {
+  const activeInjuries = injuries.filter(i => !i.recovered)
+  const sportExercises = sport ? SPORT_EXERCISES[sport] ?? null : null
+  const issueRecs = topIssues.flatMap(t => {
+    const key = Object.keys(ISSUE_FIXES).find(k => t.includes(k.split('_')[0]))
+    return key ? [{ issue: t, fixes: ISSUE_FIXES[key] }] : []
+  }).slice(0, 3)
+  const fitnessNote = fitnessLevel ? FITNESS_NOTES[fitnessLevel] ?? null : null
+
+  const hasContent = activeInjuries.length > 0 || sportExercises || issueRecs.length > 0 || fitnessNote
+
+  if (!hasContent) return null
+
+  return (
+    <div className="bg-zinc-900/40 border border-purple-500/20 rounded-2xl p-5 space-y-5">
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+        <h3 className="text-xs font-mono text-purple-300 uppercase tracking-widest">Personalized Insights</h3>
+      </div>
+
+      {/* Active injury protocols */}
+      {activeInjuries.map(injury => {
+        const protocol = INJURY_PROTOCOLS[injury.bodyPart]
+        if (!protocol) return null
+        return (
+          <div key={injury.id} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+              <span className="text-xs font-semibold text-orange-300">{protocol.title}</span>
+              <span className="text-[9px] font-mono text-zinc-600 ml-auto">{injury.injuryType}</span>
+            </div>
+            <ul className="space-y-1.5 ml-5">
+              {protocol.items.map(item => (
+                <li key={item} className="flex items-start gap-2">
+                  <span className="text-zinc-600 text-xs mt-0.5">›</span>
+                  <span className="text-xs text-zinc-400">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })}
+
+      {/* Issue-targeted corrective exercises */}
+      {issueRecs.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-3.5 h-3.5 text-yellow-400 shrink-0" />
+            <span className="text-xs font-semibold text-yellow-300">Corrective Exercises</span>
+            <span className="text-[9px] font-mono text-zinc-600 ml-auto">based on detected issues</span>
+          </div>
+          {issueRecs.map(({ issue, fixes }) => (
+            <div key={issue} className="ml-5">
+              <p className="text-[10px] font-mono text-zinc-500 mb-1.5 capitalize">{issue.replace(/_/g, ' ')}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {fixes.map(fix => (
+                  <span key={fix} className="px-2 py-1 bg-zinc-800/80 border border-zinc-700/50 rounded-md text-[10px] text-zinc-300">
+                    {fix}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sport-specific exercises */}
+      {sportExercises && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-green-400 shrink-0" />
+            <span className="text-xs font-semibold text-green-300">Sport-Specific Work</span>
+            <span className="text-[9px] font-mono text-zinc-600 ml-auto">{sport}</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5 ml-5">
+            {sportExercises.map(ex => (
+              <span key={ex} className="px-2 py-1 bg-zinc-800/80 border border-zinc-700/50 rounded-md text-[10px] text-zinc-300">
+                {ex}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Fitness level guidance */}
+      {fitnessNote && (
+        <div className="flex gap-3 bg-zinc-800/40 rounded-xl p-3.5">
+          <Shield className="w-3.5 h-3.5 text-zinc-500 mt-0.5 shrink-0" />
+          <p className="text-[11px] text-zinc-400 leading-relaxed">{fitnessNote}</p>
+        </div>
+      )}
     </div>
   )
 }

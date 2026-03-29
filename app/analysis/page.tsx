@@ -5,7 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { Activity, AlertTriangle, BarChart2, Bot, GitCompare, ChevronLeft } from 'lucide-react'
+import {
+  Activity, AlertTriangle, BarChart2, Bot, ChevronLeft, CheckCircle,
+  Zap, Clock, Layers,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useSessionStore } from '@/stores/sessionStore'
 import { useAnalysisStore } from '@/stores/analysisStore'
@@ -13,25 +16,23 @@ import { extractPoseFromVideo } from '@/lib/pose/mediapipe'
 import { detectIssues } from '@/lib/pose/detection'
 import { computeScores } from '@/lib/pose/scoring'
 import { buildSkeletonSummary, compressPoseData } from '@/lib/pose/skeleton'
-import { loadBuiltInReferences, compareToReference, getTopDeviatedJoints } from '@/lib/pose/reference'
+import { detectKeyMoments } from '@/lib/pose/keyMoments'
 import { generateCoachingFeedback } from '@/lib/gemini/client'
 import type { DetectedIssue } from '@/types'
 import IssueCard from '@/components/analysis/IssueCard'
 import AIFeedback from '@/components/analysis/AIFeedback'
-import ReferenceComparison from '@/components/analysis/ReferenceComparison'
 import ProgressBar from '@/components/upload/ProgressBar'
 import { cn } from '@/lib/utils'
 
-const PoseOverlay = dynamic(() => import('@/components/pose/PoseOverlay'), { ssr: false })
-const ScoreGauges = dynamic(() => import('@/components/analysis/ScoreGauges'), { ssr: false })
+const PoseOverlay = dynamic(() => import(/* webpackMode: "eager" */ '@/components/pose/PoseOverlay'), { ssr: false })
+const ScoreGauges = dynamic(() => import(/* webpackMode: "eager" */ '@/components/analysis/ScoreGauges'), { ssr: false })
 
-type RightTab = 'scores' | 'issues' | 'reference' | 'coach'
+type RightTab = 'scores' | 'issues' | 'coach'
 
 const TAB_CONFIG: { id: RightTab; label: string; icon: React.ReactNode }[] = [
-  { id: 'scores',    label: 'Scores',    icon: <BarChart2 className="w-3.5 h-3.5" /> },
-  { id: 'issues',    label: 'Issues',    icon: <AlertTriangle className="w-3.5 h-3.5" /> },
-  { id: 'reference', label: 'Reference', icon: <GitCompare className="w-3.5 h-3.5" /> },
-  { id: 'coach',     label: 'AI Coach',  icon: <Bot className="w-3.5 h-3.5" /> },
+  { id: 'scores', label: 'Scores',   icon: <BarChart2 className="w-3.5 h-3.5" /> },
+  { id: 'issues', label: 'Issues',   icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  { id: 'coach',  label: 'AI Coach', icon: <Bot className="w-3.5 h-3.5" /> },
 ]
 
 function AnalysisContent() {
@@ -49,14 +50,13 @@ function AnalysisContent() {
 
   const [feedbackLoading, setFeedbackLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<RightTab>('scores')
+  const [keyMomentLabels, setKeyMomentLabels] = useState<string[]>([])
   const processingRef = useRef(false)
   const currentSessionId = searchParams.get('session') ?? sessionId
 
   // Auto-switch to issues tab when analysis completes with issues found
   useEffect(() => {
-    if (status === 'complete' && detectedIssues.length > 0) {
-      setActiveTab('issues')
-    }
+    if (status === 'complete' && detectedIssues.length > 0) setActiveTab('issues')
   }, [status, detectedIssues.length])
 
   // Auto-switch to coach tab when AI feedback arrives
@@ -65,57 +65,80 @@ function AnalysisContent() {
   }, [aiFeedback])
 
   const runAnalysis = useCallback(async () => {
-    if (processingRef.current || !videoBlobUrl) return
+    if (processingRef.current) return
     processingRef.current = true
     setStatus('processing')
+
     try {
-      const videoEl = document.createElement('video')
-      videoEl.src = videoBlobUrl
-      videoEl.muted = true
-      await new Promise<void>((res, rej) => {
-        videoEl.addEventListener('loadedmetadata', () => res())
-        videoEl.addEventListener('error', () => rej(new Error('Video failed to load. Try a different file.')))
-        videoEl.load()
-      })
+      // Always read directly from the Zustand store to avoid stale closure issues.
+      // useCallback captures values at render time; store.getState() always returns current.
+      const storeSnapshot = useSessionStore.getState()
+      let frames = storeSnapshot.poseFrames
+      const preseededIssues = storeSnapshot.detectedIssues
+      const storedMovement = storeSnapshot.movementType
+      const storedRepCount = storeSnapshot.repCount
+      let sessionDuration = storeSnapshot.durationSeconds
+      const blobUrl = storeSnapshot.videoBlobUrl
 
-      setDuration(videoEl.duration)
+      // Skip re-extraction if frames were pre-seeded from live recording.
+      // If WASM failed during recording and frames are empty, we fall through to
+      // extraction — the video is now a raw camera stream (seekable, no overlay),
+      // so extraction will give correct results.
+      if (!frames.length) {
+        if (!blobUrl) throw new Error('No video source')
+        const videoEl = document.createElement('video')
+        videoEl.src = blobUrl
+        videoEl.muted = true
+        await new Promise<void>((res, rej) => {
+          videoEl.addEventListener('loadedmetadata', () => res())
+          videoEl.addEventListener('error', () => rej(new Error('Video failed to load. Try a different file.')))
+          videoEl.load()
+        })
+        setDuration(videoEl.duration)
+        sessionDuration = videoEl.duration
+        frames = await extractPoseFromVideo(videoEl, p => setProgress(50 + p * 30))
+        if (!frames.length) throw new Error('No person detected in video. Ensure full body is visible.')
+        setPoseFrames(frames)
+      }
 
-      const frames = await extractPoseFromVideo(videoEl, p => setProgress(50 + p * 30))
-      if (!frames.length) throw new Error('No person detected in video. Ensure full body is visible.')
-
-      setPoseFrames(frames)
       setProgress(80)
 
-      const issues = detectIssues(frames, movementType)
-      setDetectedIssues(issues)
+      // Use pre-seeded issues from live detection; otherwise run fresh detection
+      const issues = preseededIssues.length
+        ? preseededIssues
+        : detectIssues(frames, storedMovement)
+      if (!preseededIssues.length) setDetectedIssues(issues)
       setProgress(85)
 
-      const scoreResult = computeScores(frames, issues, movementType)
+      const scoreResult = computeScores(frames, issues, storedMovement)
       setScores(scoreResult)
-      setProgress(90)
 
-      let topJoints: string[] = []
-      try {
-        const refs = await loadBuiltInReferences(movementType)
-        if (refs.length > 0) topJoints = getTopDeviatedJoints(compareToReference(frames, refs[0].frames))
-      } catch { /* non-blocking */ }
+      const moments = detectKeyMoments(frames, storedMovement)
+      setKeyMomentLabels(moments.map(m => m.label))
+      setProgress(90)
 
       setStatus('analyzing')
       setFeedbackLoading(true)
       let feedback = ''
       try {
-        feedback = await generateCoachingFeedback({ movementType, detectedIssues: issues, scores: scoreResult, topDeviatedJoints: topJoints, repCount, duration: videoEl.duration })
+        feedback = await generateCoachingFeedback({
+          movementType: storedMovement, detectedIssues: issues, scores: scoreResult,
+          topDeviatedJoints: [], repCount: storedRepCount, duration: sessionDuration,
+        })
         setAiFeedback(feedback)
-      } catch { /* non-blocking */ }
+      } catch (feedbackErr) {
+        console.error('[AI Coach] feedback generation failed:', feedbackErr)
+      }
       setFeedbackLoading(false)
 
-      if (currentSessionId) {
+      const sessionId = storeSnapshot.sessionId ?? currentSessionId
+      if (sessionId) {
         await supabase.from('sessions').update({
           pose_data: compressPoseData(frames),
           pose_skeleton_summary: buildSkeletonSummary(frames),
           scores: scoreResult, detected_issues: issues,
-          ai_feedback: feedback, rep_count: repCount, duration_seconds: videoEl.duration,
-        }).eq('id', currentSessionId)
+          ai_feedback: feedback, rep_count: storedRepCount, duration_seconds: sessionDuration,
+        }).eq('id', sessionId)
       }
 
       setProgress(100)
@@ -123,20 +146,23 @@ function AnalysisContent() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed')
     } finally { processingRef.current = false }
-  }, [videoBlobUrl, movementType, currentSessionId, repCount, setStatus, setProgress, setError, setPoseFrames, setDetectedIssues, setScores, setAiFeedback, setDuration, supabase])
+  // Stable deps only — all session data is read via getState() above
+  }, [currentSessionId, setStatus, setProgress, setError, setPoseFrames, setDetectedIssues,
+      setScores, setAiFeedback, setDuration, supabase])
 
   useEffect(() => {
-    if (status === 'processing' && !poseFrames.length && videoBlobUrl) runAnalysis()
-  }, [status, poseFrames.length, videoBlobUrl, runAnalysis])
+    if (status === 'processing') runAnalysis()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status])
 
   const handleRegenerate = async () => {
     if (!scores) return
     setFeedbackLoading(true)
     try {
-      let topJoints: string[] = []
-      const refs = await loadBuiltInReferences(movementType)
-      if (refs.length > 0 && poseFrames.length > 0) topJoints = getTopDeviatedJoints(compareToReference(poseFrames, refs[0].frames))
-      const feedback = await generateCoachingFeedback({ movementType, detectedIssues, scores, topDeviatedJoints: topJoints, repCount, duration: durationSeconds })
+      const feedback = await generateCoachingFeedback({
+        movementType, detectedIssues, scores,
+        topDeviatedJoints: [], repCount, duration: durationSeconds,
+      })
       setAiFeedback(feedback)
       if (currentSessionId) await supabase.from('sessions').update({ ai_feedback: feedback }).eq('id', currentSessionId)
     } catch { /* silent */ } finally { setFeedbackLoading(false) }
@@ -155,7 +181,7 @@ function AnalysisContent() {
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <div className="text-center">
           <p className="text-zinc-400 mb-4">No video loaded.</p>
-          <Link href="/upload" className="text-purple-400 hover:text-purple-300 text-sm">Upload a video →</Link>
+          <Link href="/upload" className="text-purple-400 hover:text-purple-300 text-sm">Upload a video</Link>
         </div>
       </div>
     )
@@ -166,7 +192,7 @@ function AnalysisContent() {
       {/* Header */}
       <header className="h-14 border-b border-zinc-800/50 flex items-center justify-between px-5 shrink-0 bg-[#050505]/95 backdrop-blur-md z-20">
         <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="flex items-center gap-1.5 text-zinc-500 hover:text-white transition-colors">
+          <Link href="/dashboard" className="text-zinc-500 hover:text-white transition-colors">
             <ChevronLeft className="w-4 h-4" />
           </Link>
           <div className="w-6 h-6 bg-purple-600 rounded-md flex items-center justify-center">
@@ -174,20 +200,20 @@ function AnalysisContent() {
           </div>
           <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest">Analysis</span>
           <span className="text-xs text-zinc-700">·</span>
-          <span className="text-xs font-mono text-zinc-500 capitalize">{movementType.replace('_', ' ')}</span>
+          <span className="text-xs font-mono text-zinc-500 capitalize">{movementType.replaceAll('_', ' ')}</span>
         </div>
 
         {isProcessing && (
           <div className="flex items-center gap-2">
             <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs text-zinc-500 font-mono">
-              {status === 'analyzing' ? 'AI coaching…' : `${Math.round(progress)}%`}
+              {status === 'analyzing' ? 'Generating feedback...' : `${Math.round(progress)}%`}
             </span>
           </div>
         )}
       </header>
 
-      {/* Error */}
+      {/* Error state */}
       {hasError && (
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="text-center max-w-sm">
@@ -201,10 +227,10 @@ function AnalysisContent() {
         </div>
       )}
 
-      {/* Main content */}
+      {/* Main layout */}
       {!hasError && videoSrc && (
         <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* Left: video panel */}
+          {/* Left: video + stats */}
           <div className="lg:w-[58%] flex flex-col p-5 gap-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-zinc-800/50">
             <PoseOverlay
               videoSrc={videoSrc}
@@ -217,28 +243,35 @@ function AnalysisContent() {
             {isProcessing && (
               <ProgressBar
                 progress={progress}
-                label={status === 'analyzing' ? 'Generating AI coaching feedback…' : 'Extracting pose data…'}
+                label={status === 'analyzing' ? 'Generating AI coaching feedback...' : 'Extracting pose data...'}
               />
             )}
 
             {/* Session stats strip */}
             {status === 'complete' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center gap-4 px-1 flex-wrap"
-              >
-                {[
-                  { label: 'Movement', value: movementType.replace('_', ' ') },
-                  durationSeconds > 0 && { label: 'Duration', value: `${durationSeconds.toFixed(1)}s` },
-                  poseFrames.length > 0 && { label: 'Frames', value: poseFrames.length },
-                  detectedIssues.length > 0 && { label: 'Issues', value: detectedIssues.length },
-                ].filter(Boolean).map((item: { label: string; value: string | number } | false, i) =>
-                  item && (
-                    <div key={i} className="text-[10px] font-mono text-zinc-600">
-                      {item.label}: <span className="text-zinc-400 capitalize">{item.value}</span>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+                <div className="flex flex-wrap gap-4">
+                  {[
+                    durationSeconds > 0 && { icon: <Clock className="w-3 h-3" />, label: 'Duration', value: `${durationSeconds.toFixed(1)}s` },
+                    poseFrames.length > 0 && { icon: <Layers className="w-3 h-3" />, label: 'Frames', value: poseFrames.length },
+                    detectedIssues.length > 0 && { icon: <AlertTriangle className="w-3 h-3" />, label: 'Issues', value: detectedIssues.length },
+                  ].filter(Boolean).map((item, i) => item && (
+                    <div key={i} className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
+                      <span className="text-zinc-700">{item.icon}</span>
+                      {item.label}: <span className="text-zinc-400">{item.value}</span>
                     </div>
-                  )
+                  ))}
+                </div>
+
+                {keyMomentLabels.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {keyMomentLabels.map(label => (
+                      <div key={label} className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/60 border border-zinc-700/50 rounded-lg">
+                        <Zap className="w-2.5 h-2.5 text-purple-400" />
+                        <span className="text-[10px] font-mono text-zinc-400">{label}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </motion.div>
             )}
@@ -275,6 +308,8 @@ function AnalysisContent() {
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+              {/* Scores tab */}
               {activeTab === 'scores' && (
                 scores ? <ScoreGauges scores={scores} /> : (
                   isProcessing ? (
@@ -285,6 +320,7 @@ function AnalysisContent() {
                 )
               )}
 
+              {/* Issues tab */}
               {activeTab === 'issues' && (
                 <div className="space-y-3">
                   {isProcessing && (
@@ -292,15 +328,17 @@ function AnalysisContent() {
                       {[1, 2].map(i => <div key={i} className="h-24 rounded-xl bg-zinc-900/50 animate-pulse border border-zinc-800" />)}
                     </div>
                   )}
+
                   {!isProcessing && detectedIssues.length === 0 && status === 'complete' && (
-                    <div className="text-center py-8">
+                    <div className="text-center py-10">
                       <div className="w-12 h-12 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-3">
-                        <span className="text-xl">✓</span>
+                        <CheckCircle className="w-5 h-5 text-green-400" />
                       </div>
                       <p className="text-sm font-semibold text-zinc-300 mb-1">No significant issues detected</p>
-                      <p className="text-xs text-zinc-600">Movement looks clean. Check Reference tab for comparison with ideal form.</p>
+                      <p className="text-xs text-zinc-600">Movement mechanics look clean. Check AI Coach for personalised tips.</p>
                     </div>
                   )}
+
                   {detectedIssues.map((issue, i) => (
                     <IssueCard
                       key={issue.id}
@@ -313,20 +351,15 @@ function AnalysisContent() {
                 </div>
               )}
 
-              {activeTab === 'reference' && poseFrames.length > 0 && (
-                <ReferenceComparison userFrames={poseFrames} movementType={movementType} />
-              )}
-              {activeTab === 'reference' && !poseFrames.length && (
-                <p className="text-sm text-zinc-600">Reference comparison available after analysis.</p>
-              )}
-
+              {/* AI Coach tab */}
               {activeTab === 'coach' && (
                 <AIFeedback
                   feedback={aiFeedback}
                   loading={feedbackLoading}
                   onRegenerate={handleRegenerate}
                   onFeedbackReady={text => {
-                    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('form:feedback-ready', { detail: { text, sessionId: currentSessionId } }))
+                    if (typeof window !== 'undefined')
+                      window.dispatchEvent(new CustomEvent('form:feedback-ready', { detail: { text, sessionId: currentSessionId } }))
                   }}
                 />
               )}
@@ -340,7 +373,11 @@ function AnalysisContent() {
 
 export default function AnalysisPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#050505] flex items-center justify-center"><div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /></div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
+        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
       <AnalysisContent />
     </Suspense>
   )

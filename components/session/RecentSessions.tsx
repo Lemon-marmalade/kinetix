@@ -85,7 +85,7 @@ export default function RecentSessions({ userId }: RecentSessionsProps) {
         <SessionCard key={session.id} session={session} index={i} />
       ))}
       <Link
-        href="/dashboard"
+        href="/sessions"
         className="flex items-center justify-center gap-1 text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors pt-2"
       >
         View all sessions <ChevronRight className="w-3 h-3" />

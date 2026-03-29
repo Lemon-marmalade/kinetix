@@ -5,9 +5,9 @@ import { motion } from 'framer-motion'
 import type { Session } from '@/types'
 import { AlertTriangle, ChevronRight } from 'lucide-react'
 
-const MOVEMENT_ICONS: Record<string, string> = {
-  lateral_cut: '⚡', jump_landing: '🦘', squat: '🏋️', deadlift: '💪',
-  lunge: '🦵', plank: '📐', overhead_press: '🏆', sprint: '🏃',
+const MOVEMENT_ABBR: Record<string, string> = {
+  lateral_cut: 'CUT', jump_landing: 'LND', squat: 'SQ', deadlift: 'DL',
+  lunge: 'LNG', plank: 'PLK', overhead_press: 'OHP', sprint: 'SPR',
 }
 
 function scoreTextColor(v: number) {
@@ -34,9 +34,9 @@ export default function SessionCard({ session, index = 0 }: SessionCardProps) {
     >
       <Link href={`/session/${session.id}`}>
         <div className="flex items-center gap-4 bg-zinc-900/40 border border-zinc-800 hover:border-zinc-700 rounded-xl px-4 py-3.5 transition-all group cursor-pointer">
-          {/* Movement icon */}
-          <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700/50 flex items-center justify-center text-lg shrink-0">
-            {MOVEMENT_ICONS[session.movement_type] ?? '🎯'}
+          {/* Movement abbr badge */}
+          <div className="w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700/50 flex items-center justify-center shrink-0">
+            <span className="text-[9px] font-mono font-bold text-zinc-400">{MOVEMENT_ABBR[session.movement_type] ?? 'MOV'}</span>
           </div>
 
           {/* Info */}

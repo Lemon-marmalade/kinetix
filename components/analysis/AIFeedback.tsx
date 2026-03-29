@@ -2,29 +2,44 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Bot, RefreshCw, Volume2 } from 'lucide-react'
+import { Bot, RefreshCw, Volume2, VolumeX, Loader2 } from 'lucide-react'
+import { speak, stop } from '@/lib/elevenlabs/tts'
+import { cn } from '@/lib/utils'
 
 interface AIFeedbackProps {
   feedback: string | null
   loading: boolean
   onRegenerate: () => void
-  /** Stub: called when user clicks voice playback — wires into Iris/ElevenLabs */
   onFeedbackReady?: (text: string) => void
 }
 
-const TYPEWRITER_SPEED = 18 // ms per character
+const TYPEWRITER_SPEED = 18
+
+/** Split Gemini output into the two labeled sections. */
+function parseFeedback(text: string): { wellDone: string; recommendations: string } | null {
+  // Strip any markdown bold/italic that slips through
+  const clean = text.replace(/\*+/g, '').replace(/#+ */g, '')
+  const wellMatch = clean.match(/WHAT YOU DID WELL[\s:]*\n+([\s\S]*?)(?=\nRECOMMENDATIONS|$)/i)
+  const recMatch  = clean.match(/RECOMMENDATIONS[\s:]*\n+([\s\S]*?)$/i)
+  if (!wellMatch && !recMatch) return null
+  return {
+    wellDone:        (wellMatch?.[1] ?? '').trim(),
+    recommendations: (recMatch?.[1]  ?? '').trim(),
+  }
+}
 
 export default function AIFeedback({ feedback, loading, onRegenerate, onFeedbackReady }: AIFeedbackProps) {
-  const [displayed, setDisplayed] = useState('')
-  const [typing, setTyping] = useState(false)
-  const indexRef = useRef(0)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [displayed, setDisplayed]   = useState('')
+  const [typing, setTyping]         = useState(false)
+  const [speaking, setSpeaking]     = useState(false)
+  const [ttsLoading, setTtsLoading] = useState(false)
+  const indexRef  = useRef(0)
+  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const runTypewriter = useCallback((text: string) => {
     indexRef.current = 0
     setDisplayed('')
     setTyping(true)
-
     const tick = () => {
       if (indexRef.current < text.length) {
         indexRef.current++
@@ -49,6 +64,28 @@ export default function AIFeedback({ feedback, loading, onRegenerate, onFeedback
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [feedback, runTypewriter])
 
+  const handleSpeak = async () => {
+    if (speaking) {
+      stop()
+      setSpeaking(false)
+      return
+    }
+    if (!feedback) return
+    setTtsLoading(true)
+    try {
+      // speak() resolves when audio ends — setSpeaking while in flight
+      const playPromise = speak(feedback, true)
+      setSpeaking(true)
+      setTtsLoading(false)
+      await playPromise
+    } catch { /* silent */ } finally {
+      setSpeaking(false)
+      setTtsLoading(false)
+    }
+  }
+
+  const parsed = feedback ? parseFeedback(feedback) : null
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -64,14 +101,25 @@ export default function AIFeedback({ feedback, loading, onRegenerate, onFeedback
           <h3 className="text-xs font-mono text-zinc-400 uppercase tracking-widest">AI Coach</h3>
         </div>
         <div className="flex items-center gap-2">
-          {/* Voice stub — emits text for Iris/ElevenLabs to consume */}
           {feedback && !typing && (
             <button
-              onClick={() => onFeedbackReady?.(feedback)}
-              className="p-1.5 text-zinc-500 hover:text-zinc-300 transition-colors"
-              title="Voice playback (Iris)"
+              onClick={handleSpeak}
+              disabled={ttsLoading}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-mono transition-all',
+                speaking
+                  ? 'bg-purple-600/20 border-purple-500/50 text-purple-300'
+                  : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
+              )}
+              title={speaking ? 'Stop playback' : 'Read aloud'}
             >
-              <Volume2 className="w-3.5 h-3.5" />
+              {ttsLoading
+                ? <Loader2 className="w-3 h-3 animate-spin" />
+                : speaking
+                  ? <VolumeX className="w-3 h-3" />
+                  : <Volume2 className="w-3 h-3" />
+              }
+              {speaking ? 'Stop' : 'Read aloud'}
             </button>
           )}
           <button
@@ -102,10 +150,35 @@ export default function AIFeedback({ feedback, loading, onRegenerate, onFeedback
           </div>
         )}
 
-        {(displayed || typing) && (
+        {/* Structured view — shown once typing is done and we can parse sections */}
+        {!typing && parsed && (
+          <div className="space-y-4">
+            {parsed.wellDone && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
+                  <span className="text-[10px] font-mono text-green-400 uppercase tracking-widest">What you did well</span>
+                </div>
+                <p className="text-sm text-zinc-300 leading-relaxed">{parsed.wellDone}</p>
+              </div>
+            )}
+            {parsed.recommendations && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
+                  <span className="text-[10px] font-mono text-orange-400 uppercase tracking-widest">Recommendations</span>
+                </div>
+                <p className="text-sm text-zinc-300 leading-relaxed">{parsed.recommendations}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Typewriter view (during typing) or fallback plain text (unparsed format) */}
+        {(typing || (!parsed && displayed)) && (
           <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
             {displayed}
-            {typing && <span className="cursor-blink text-purple-400 font-bold">|</span>}
+            {typing && <span className="text-purple-400 font-bold">|</span>}
           </p>
         )}
 
