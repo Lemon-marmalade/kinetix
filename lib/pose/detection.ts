@@ -1,22 +1,3 @@
-/**
- * Movement Analysis Detection Engine v3
- *
- * Accuracy improvements over v2:
- * - selectKeyFrames(): analyze only the biomechanically critical phase per movement,
- *   not every frame (eliminates noise from standing/transition frames)
- * - Body-proportion normalization: valgus and hip drop normalized by hip width
- * - Confidence gating: landmarks below 0.6 visibility skip that measurement
- * - Grace scoring: continuous 0-1 quality, issue only fires when quality < 0.5
- *   (replaces binary threshold — avoids flagging borderline good form)
- * - Wider tolerance buffers on all thresholds (~40-60% looser than v1)
- * - Increased frequency requirements (25-35% of key frames, not 12-15%)
- * - Removed unreliable detectors from squat:
- *   • spineAngle() measures lateral tilt in frontal view, NOT forward lean — removed
- *   • anteriorPelvicTilt() proxy is too noisy — removed
- * - Ankle eversion: tighter angle threshold, stricter frequency
- * - Deadlift: forward lean expected — kept removed
- */
-
 import type { PoseFrame, DetectedIssue, IssueSeverity, MovementType, IssueType } from '@/types'
 import {
   kneeValgusDeviation, torsoLateralTilt, hipDropAbs, ankleAngle,
@@ -26,66 +7,50 @@ import {
 import type { PoseLandmark } from '@/types'
 
 // ─── Normalized thresholds ─────────────────────────────────────────────────
-// All multiplied ~40-60% wider than v1 to reduce false positives.
 
 const T = {
-  // Knee valgus — normalized as fraction of hip width (not absolute pixel deviation)
-  // Research: <10% = normal, 10-20% = borderline, >20% = clinical concern
-  VALGUS_MILD:     0.22,   // raised — only flag meaningful collapse
-  VALGUS_MODERATE: 0.34,
-  VALGUS_SEVERE:   0.46,
+  VALGUS_MILD:     0.09,
+  VALGUS_MODERATE: 0.22,
+  VALGUS_SEVERE:   0.38,
 
-  // Hip drop / Trendelenburg — normalized by hip width
-  HIP_DROP_MILD:     0.10,
-  HIP_DROP_MODERATE: 0.18,
-  HIP_DROP_SEVERE:   0.26,
+  HIP_DROP_MILD:     0.06,
+  HIP_DROP_MODERATE: 0.14,
+  HIP_DROP_SEVERE:   0.24,
 
-  // Torso lateral tilt (degrees)
-  TILT_MILD:     14,
-  TILT_MODERATE: 22,
-  TILT_SEVERE:   32,
+  TILT_MILD:     6,
+  TILT_MODERATE: 14,
+  TILT_SEVERE:   24,
 
-  // Stiff landing — knee flexion at contact (unchanged, well-researched)
   STIFF_SAFE:     90,
   STIFF_MILD:     70,
   STIFF_MODERATE: 50,
   STIFF_SEVERE:   35,
 
-  // Plank hip deviation (fraction of frame height)
-  PLANK_SAG_MILD:     0.040,
-  PLANK_SAG_MODERATE: 0.070,
-  PLANK_SAG_SEVERE:   0.110,
+  PLANK_SAG_MILD:     0.020,
+  PLANK_SAG_MODERATE: 0.045,
+  PLANK_SAG_SEVERE:   0.080,
 
-  // Squat depth — only flag when person is clearly above parallel
-  SQUAT_DEPTH_OK:    -0.05,  // hip must be > 5% above knee to flag
+  SQUAT_DEPTH_OK:    -0.05,
 
-  // Shoulder asymmetry (fraction of frame height)
-  SHOULDER_SYM_MILD:     0.045,
-  SHOULDER_SYM_MODERATE: 0.090,
+  SHOULDER_SYM_MILD:     0.025,
+  SHOULDER_SYM_MODERATE: 0.055,
 
-  // Lateral asymmetry (degrees)
-  ASYM_MILD:     16,
-  ASYM_MODERATE: 28,
-  ASYM_SEVERE:   40,
+  ASYM_MILD:     10,
+  ASYM_MODERATE: 20,
+  ASYM_SEVERE:   32,
 
-  // Ankle eversion — KNEE→ANKLE→FOOT_INDEX angle from frontal view.
-  // Smaller angle = foot angled inward relative to shin = pronation signal.
-  // Only meaningful from a confirmed frontal camera angle.
-  ANKLE_NORMAL:   72,   // below this, start measuring
-  ANKLE_MILD:     60,   // mild pronation flag
-  ANKLE_MODERATE: 48,   // moderate pronation
+  ANKLE_NORMAL:   72,
+  ANKLE_MILD:     60,
+  ANKLE_MODERATE: 48,
 
-  // Confidence gate: landmark visibility below this value is excluded from measurements
-  MIN_VISIBILITY: 0.70,   // raised from 0.65 — require cleaner landmark data
+  MIN_VISIBILITY: 0.60,
 }
 
 type FrameFlag = { frameIndex: number; value: number }
 
 // ─── Minimum frame counts to escalate severity ───────────────────────────────
-// Prevents a single bad frame from triggering severe warnings.
-// Severe requires sustained evidence across many key frames.
-const MIN_FRAMES_MODERATE = 8   // at least 8 key frames above moderate threshold
-const MIN_FRAMES_SEVERE   = 16  // at least 16 key frames above severe threshold
+const MIN_FRAMES_MODERATE = 3
+const MIN_FRAMES_SEVERE   = 6
 
 function sevFromValue(v: number, mild: number, moderate: number, severe: number): IssueSeverity | null {
   if (v >= severe)   return 'severe'
@@ -101,7 +66,6 @@ function maxSeverity(
   const peak = Math.max(...flags.map(f => f.value))
   const baseSev = sevFromValue(peak, mild, moderate, severe) ?? 'mild'
 
-  // Downgrade if insufficient frames to confirm the peak severity
   const severeFlags   = flags.filter(f => f.value >= severe).length
   const moderateFlags = flags.filter(f => f.value >= moderate).length
 
@@ -115,12 +79,6 @@ function maxSeverity(
 }
 
 // ─── Camera angle detection ──────────────────────────────────────────────────
-// Frontal-plane detectors (valgus, hip drop) are only valid from a FRONT or
-// REAR camera angle. Side-profile footage makes hip/knee x-coordinates nearly
-// identical, so any "deviation" is measurement noise, not real valgus.
-//
-// Heuristic: if the horizontal spread between L_HIP and R_HIP (x-axis) is
-// very small relative to the subject's apparent size, the camera is side-on.
 
 type CameraView = 'front' | 'side' | 'unknown'
 
@@ -142,11 +100,9 @@ function detectCameraView(frames: PoseFrame[]): CameraView {
   if (!spreads.length) return 'unknown'
   const avgSpread = spreads.reduce((a, b) => a + b, 0) / spreads.length
 
-  // If body width is < 12% of frame width → very likely a side view
   if (avgSpread < 0.12) return 'side'
-  // If body width is > 20% → clearly front or 45° — frontal-plane analysis is valid
   if (avgSpread > 0.20) return 'front'
-  return 'unknown'  // ambiguous — apply caution
+  return 'unknown'
 }
 
 function frequencyRatio(flags: FrameFlag[], total: number): number {
@@ -172,9 +128,6 @@ function hipWidth(lms: PoseLandmark[]): number {
 }
 
 // ─── Key frame selection ─────────────────────────────────────────────────────
-//
-// Only analyze frames that represent the critical biomechanical phase.
-// This eliminates noise from standing / transition phases.
 
 export function selectKeyFrames(frames: PoseFrame[], movementType: MovementType): PoseFrame[] {
   if (frames.length < 6) return frames
@@ -182,7 +135,6 @@ export function selectKeyFrames(frames: PoseFrame[], movementType: MovementType)
   switch (movementType) {
     case 'squat':
     case 'lunge': {
-      // Frames in the bottom 30% of the knee-angle range (deepest phase)
       const angles = frames.map(f => {
         if (f.landmarks.length < 33) return 180
         return (kneeAngle(f.landmarks, 'left') + kneeAngle(f.landmarks, 'right')) / 2
@@ -190,7 +142,6 @@ export function selectKeyFrames(frames: PoseFrame[], movementType: MovementType)
       const minA = Math.min(...angles)
       const maxA = Math.max(...angles)
       const range = maxA - minA
-      // If no real squat motion detected, use all frames
       if (range < 20) return frames
       const cutoff = minA + range * 0.30
       const key = frames.filter((_, i) => angles[i] <= cutoff)
@@ -198,7 +149,6 @@ export function selectKeyFrames(frames: PoseFrame[], movementType: MovementType)
     }
 
     case 'jump_landing': {
-      // 20-frame window centred on the landing moment (minimum knee angle)
       const angles = frames.map(f => {
         if (f.landmarks.length < 33) return 180
         return (kneeAngle(f.landmarks, 'left') + kneeAngle(f.landmarks, 'right')) / 2
@@ -210,7 +160,6 @@ export function selectKeyFrames(frames: PoseFrame[], movementType: MovementType)
     }
 
     case 'deadlift': {
-      // Frames in bottom 30% of hip-height range (deepest hinge)
       const hipYs = frames.map(f => {
         if (f.landmarks.length < 33) return 0
         return (f.landmarks[LANDMARKS.LEFT_HIP].y + f.landmarks[LANDMARKS.RIGHT_HIP].y) / 2
@@ -225,7 +174,6 @@ export function selectKeyFrames(frames: PoseFrame[], movementType: MovementType)
     }
 
     case 'plank':
-      // Skip first and last 20% — only steady-state middle
       return frames.slice(Math.floor(frames.length * 0.20), Math.ceil(frames.length * 0.80))
 
     default:
@@ -239,7 +187,6 @@ function detectKneeValgus(
   frames: PoseFrame[], side: 'left' | 'right', freqThreshold = 0.25,
   cameraView: CameraView = 'unknown'
 ): DetectedIssue | null {
-  // Valgus requires frontal-plane visibility. Side footage gives false readings.
   if (cameraView === 'side') return null
 
   const hipIdx  = side === 'left' ? LANDMARKS.LEFT_HIP   : LANDMARKS.RIGHT_HIP
@@ -258,12 +205,11 @@ function detectKneeValgus(
   }
 
   if (frequencyRatio(flags, frames.length) < freqThreshold) return null
-  if (flags.length < 6) return null  // need at least 6 key frames
+  if (flags.length < 6) return null
 
   let sev = maxSeverity(flags, T.VALGUS_MILD, T.VALGUS_MODERATE, T.VALGUS_SEVERE)
   const peak = Math.max(...flags.map(f => f.value))
 
-  // Unknown camera angle: cap at moderate + add caveat
   const angleNote = cameraView === 'unknown'
     ? ' Note: confirm with front-facing footage for accurate assessment.'
     : ''
@@ -286,7 +232,6 @@ function detectHipDrop(
   frames: PoseFrame[], freqThreshold = 0.25,
   cameraView: CameraView = 'unknown'
 ): DetectedIssue | null {
-  // Hip drop (Trendelenburg) is a frontal-plane sign — not visible from side view
   if (cameraView === 'side') return null
 
   const flags: FrameFlag[] = []
@@ -356,8 +301,6 @@ function detectTorsoInstability(frames: PoseFrame[], freqThreshold = 0.28): Dete
 function detectAnkleEversion(
   frames: PoseFrame[], side: 'left' | 'right', cameraView: CameraView = 'unknown'
 ): DetectedIssue | null {
-  // Ankle eversion via KNEE→ANKLE→FOOT_INDEX angle is only meaningful from a frontal view.
-  // Side/unknown angles produce unreliable readings — skip entirely.
   if (cameraView !== 'front') return null
 
   const heelIdx  = side === 'left' ? LANDMARKS.LEFT_HEEL       : LANDMARKS.RIGHT_HEEL
@@ -365,7 +308,6 @@ function detectAnkleEversion(
   const ankleIdx = side === 'left' ? LANDMARKS.LEFT_ANKLE      : LANDMARKS.RIGHT_ANKLE
   const kneeIdx  = side === 'left' ? LANDMARKS.LEFT_KNEE       : LANDMARKS.RIGHT_KNEE
 
-  // Ankle landmarks are often occluded — require very high confidence
   const ANKLE_VIS = 0.80
 
   const flags: FrameFlag[] = []
@@ -373,7 +315,6 @@ function detectAnkleEversion(
   for (const f of frames) {
     if (f.landmarks.length < 33) continue
     const lms = f.landmarks
-    // All four ankle-area landmarks must be clearly visible
     if (
       (lms[heelIdx]?.visibility  ?? 0) < ANKLE_VIS ||
       (lms[footIdx]?.visibility  ?? 0) < ANKLE_VIS ||
@@ -382,13 +323,11 @@ function detectAnkleEversion(
     ) continue
 
     const val = ankleAngle(lms, side)
-    // Only flag if angle is clearly below the mild threshold
     if (val < T.ANKLE_MILD) flags.push({ frameIndex: f.frameIndex, value: val })
   }
 
-  // Require 55% of eligible frames to show the issue — eliminates transient noise
   if (frequencyRatio(flags, frames.length) < 0.55) return null
-  if (flags.length < 10) return null  // need sustained evidence across many frames
+  if (flags.length < 10) return null
 
   const sev = maxSeverity(
     flags.map(f => ({ ...f, value: T.ANKLE_NORMAL - f.value })),
@@ -522,7 +461,6 @@ function detectHipSag(frames: PoseFrame[]): DetectedIssue | null {
 }
 
 function detectShallowSquatDepth(frames: PoseFrame[]): DetectedIssue | null {
-  // Only flag when the person clearly does not reach parallel
   let deepestFrame: PoseFrame | null = null
   let minKneeAvg = 180
 
@@ -534,7 +472,7 @@ function detectShallowSquatDepth(frames: PoseFrame[]): DetectedIssue | null {
   }
 
   if (!deepestFrame) return null
-  if (minKneeAvg > 140) return null  // person barely squatted — don't flag depth on partial movements
+  if (minKneeAvg > 140) return null
 
   const lH = deepestFrame.landmarks[LANDMARKS.LEFT_HIP]
   const rH = deepestFrame.landmarks[LANDMARKS.RIGHT_HIP]
@@ -544,7 +482,7 @@ function detectShallowSquatDepth(frames: PoseFrame[]): DetectedIssue | null {
   const kneeMidY = (lK.y + rK.y) / 2
   const depth = hipMidY - kneeMidY  // positive = hip below knee
 
-  if (depth >= T.SQUAT_DEPTH_OK) return null  // hip is roughly at or below knee level
+  if (depth >= T.SQUAT_DEPTH_OK) return null
 
   return {
     id: 'shallow_squat_depth',
@@ -626,68 +564,67 @@ export function detectIssues(frames: PoseFrame[], movementType: MovementType): D
   const issues: DetectedIssue[] = []
   const push = (i: DetectedIssue | null) => { if (i) issues.push(i) }
 
-  // Detect camera viewing angle — gate frontal-plane detectors accordingly
   const cam = detectCameraView(all)
 
   switch (movementType) {
     case 'lateral_cut':
-      push(detectKneeValgus(key, 'left',  0.30, cam))
-      push(detectKneeValgus(key, 'right', 0.30, cam))
-      push(detectHipDrop(key, 0.32, cam))
-      push(detectTorsoInstability(key, 0.35))
+      push(detectKneeValgus(key, 'left',  0.15, cam))
+      push(detectKneeValgus(key, 'right', 0.15, cam))
+      push(detectHipDrop(key, 0.15, cam))
+      push(detectTorsoInstability(key, 0.15))
       push(detectAnkleEversion(all, 'left',  cam))
       push(detectAnkleEversion(all, 'right', cam))
       break
 
     case 'jump_landing':
-      push(detectKneeValgus(key, 'left',  0.28, cam))
-      push(detectKneeValgus(key, 'right', 0.28, cam))
+      push(detectKneeValgus(key, 'left',  0.15, cam))
+      push(detectKneeValgus(key, 'right', 0.15, cam))
       push(detectStiffLanding(key))
       push(detectLandingAsymmetry(key))
-      push(detectHipDrop(key, 0.32, cam))
+      push(detectHipDrop(key, 0.15, cam))
       push(detectAnkleEversion(all, 'left',  cam))
       push(detectAnkleEversion(all, 'right', cam))
       break
 
     case 'squat':
-      push(detectKneeValgus(key, 'left',  0.32, cam))
-      push(detectKneeValgus(key, 'right', 0.32, cam))
+      push(detectKneeValgus(key, 'left',  0.15, cam))
+      push(detectKneeValgus(key, 'right', 0.15, cam))
       push(detectShallowSquatDepth(all))
-      push(detectHipDrop(key, 0.35, cam))
+      push(detectHipDrop(key, 0.15, cam))
       push(detectAnkleEversion(all, 'left',  cam))
       push(detectAnkleEversion(all, 'right', cam))
       break
 
     case 'plank':
       push(detectHipSag(key))
-      push(detectShoulderAsymmetry(key, 0.35))
-      push(detectTorsoInstability(key, 0.35))
+      push(detectShoulderAsymmetry(key, 0.20))
+      push(detectTorsoInstability(key, 0.20))
       break
 
     case 'deadlift':
-      push(detectHipDrop(key, 0.32, cam))
-      push(detectKneeValgus(key, 'left',  0.32, cam))
-      push(detectKneeValgus(key, 'right', 0.32, cam))
-      push(detectShoulderAsymmetry(all, 0.35))
+      push(detectHipDrop(key, 0.15, cam))
+      push(detectKneeValgus(key, 'left',  0.15, cam))
+      push(detectKneeValgus(key, 'right', 0.15, cam))
+      push(detectShoulderAsymmetry(all, 0.20))
       break
 
     case 'lunge':
-      push(detectKneeValgus(key, 'left',  0.30, cam))
-      push(detectKneeValgus(key, 'right', 0.30, cam))
-      push(detectTorsoInstability(key, 0.35))
-      push(detectHipDrop(key, 0.32, cam))
+      push(detectKneeValgus(key, 'left',  0.15, cam))
+      push(detectKneeValgus(key, 'right', 0.15, cam))
+      push(detectTorsoInstability(key, 0.15))
+      push(detectHipDrop(key, 0.15, cam))
       push(detectAnkleEversion(all, 'left',  cam))
       push(detectAnkleEversion(all, 'right', cam))
       break
 
     case 'overhead_press':
-      push(detectShoulderAsymmetry(all, 0.35))
-      push(detectTorsoInstability(all, 0.35))
+      push(detectShoulderAsymmetry(all, 0.20))
+      push(detectTorsoInstability(all, 0.20))
       break
 
     case 'sprint':
-      push(detectHipDrop(key, 0.32, cam))
-      push(detectTorsoInstability(key, 0.35))
+      push(detectHipDrop(key, 0.15, cam))
+      push(detectTorsoInstability(key, 0.15))
       push(detectLandingAsymmetry(key))
       push(detectAnkleEversion(all, 'left',  cam))
       push(detectAnkleEversion(all, 'right', cam))

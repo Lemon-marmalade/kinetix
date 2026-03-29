@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Upload, FileVideo, X, Video, ChevronRight, AlertCircle } from 'lucide-react'
+import { Upload, FileVideo, X, Video, ChevronRight, AlertCircle } from 'lucide-react'
+import AppHeader from '@/components/ui/AppHeader'
 import { createClient } from '@/lib/supabase/client'
 import { uploadVideo, getVideoExpiresAt } from '@/lib/supabase/storage'
 import { useSessionStore } from '@/stores/sessionStore'
@@ -22,17 +23,17 @@ const MOVEMENTS: MovementType[] = [
 ]
 
 const CATEGORY_COLORS = {
-  athletic:  'border-orange-500/30 bg-orange-500/5 hover:border-orange-400/50',
-  strength:  'border-blue-500/30 bg-blue-500/5 hover:border-blue-400/50',
-  stability: 'border-green-500/30 bg-green-500/5 hover:border-green-400/50',
-  cardio:    'border-purple-500/30 bg-purple-500/5 hover:border-purple-400/50',
+  athletic:  'border-white/10 bg-white/[0.02] hover:border-white/20',
+  strength:  'border-white/10 bg-white/[0.02] hover:border-white/20',
+  stability: 'border-white/10 bg-white/[0.02] hover:border-white/20',
+  cardio:    'border-white/10 bg-white/[0.02] hover:border-white/20',
 }
 
 const CATEGORY_BADGE = {
-  athletic:  'bg-orange-500/15 text-orange-400',
-  strength:  'bg-blue-500/15 text-blue-400',
-  stability: 'bg-green-500/15 text-green-400',
-  cardio:    'bg-purple-500/15 text-purple-400',
+  athletic:  'bg-white/[0.06] text-white/60',
+  strength:  'bg-white/[0.06] text-white/60',
+  stability: 'bg-white/[0.06] text-white/60',
+  cardio:    'bg-white/[0.06] text-white/60',
 }
 
 type InputMode = 'upload' | 'record'
@@ -42,7 +43,7 @@ export default function UploadPage() {
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { setVideoFile, setVideoUrl, setVideoBlobUrl, setSessionId, movementType, setMovementType, setPoseFrames, setHasLiveFrames, setDetectedIssues, setRepCount } = useSessionStore()
+  const { setVideoFile, setVideoUrl, setVideoBlobUrl, setSessionId, movementType, setMovementType, setPoseFrames, setHasLiveFrames, setDetectedIssues, setRepCount, resetSession } = useSessionStore()
   const { status, progress, setStatus, setProgress, setError } = useAnalysisStore()
 
   const [mode, setMode] = useState<InputMode>('upload')
@@ -62,10 +63,13 @@ export default function UploadPage() {
     const err = validateFile(file)
     if (err) { setLocalError(err); return }
     setLocalError(null)
+    setPoseFrames([])
+    setDetectedIssues([])
+    setHasLiveFrames(false)
     setSelectedFile(file)
     setVideoFile(file)
     setVideoBlobUrl(URL.createObjectURL(file))
-  }, [setVideoFile, setVideoBlobUrl])
+  }, [setVideoFile, setVideoBlobUrl, setPoseFrames, setDetectedIssues, setHasLiveFrames])
 
   const handleRecordingComplete = useCallback((
     blob: Blob, blobUrl: string,
@@ -78,11 +82,8 @@ export default function UploadPage() {
     setVideoFile(file)
     setVideoBlobUrl(blobUrl)
     setRecordingBlobUrl(blobUrl)
-    // Pre-seed store with live-computed data so analysis page can skip re-extraction.
-    // hasLiveFrames=true is set regardless of whether frames are non-empty, so the
-    // analysis page knows the video came from a live recording (camera stream, seekable).
-    if (frames.length) setPoseFrames(frames)
-    if (issues.length) setDetectedIssues(issues)
+    setPoseFrames(frames)
+    setDetectedIssues(issues)
     setRepCount(repCount)
     setHasLiveFrames(true)
   }, [setVideoFile, setVideoBlobUrl, setPoseFrames, setHasLiveFrames, setDetectedIssues, setRepCount])
@@ -117,19 +118,10 @@ export default function UploadPage() {
     <div className="min-h-screen bg-[#0b0b0f]">
       {/* Ambient glow */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-        <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-purple-700/15 blur-[140px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-[#00FF9D]/3 blur-[140px] rounded-full" />
       </div>
 
-      <header className="h-14 flex items-center px-8 gap-3 sticky top-0 z-10 bg-[#0b0b0f]/90 backdrop-blur-md border-b border-white/[0.06]">
-        <Link href="/dashboard" className="flex items-center gap-2 group">
-          <div className="w-7 h-7 bg-purple-600 rounded-lg flex items-center justify-center">
-            <Activity className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-xs font-mono uppercase tracking-widest text-white/40 group-hover:text-white transition-colors">FORM</span>
-        </Link>
-        <span className="text-white/20">/</span>
-        <span className="text-xs font-mono text-white/30 uppercase tracking-widest">New Session</span>
-      </header>
+      <AppHeader />
 
       {/* Thin line progress */}
       <div className="flex items-center gap-1.5 px-8 pt-3">
@@ -138,7 +130,7 @@ export default function UploadPage() {
             key={i}
             className={`h-[2px] flex-1 rounded-full transition-all duration-300 ${
               (i === 0 && (step === 'movement' || step === 'input')) || (i === 1 && step === 'input')
-                ? 'bg-purple-500' : 'bg-white/10'
+                ? 'bg-[#00FF9D]' : 'bg-white/10'
             }`}
           />
         ))}
@@ -162,14 +154,14 @@ export default function UploadPage() {
                       onClick={() => { setMovementType(type); setStep('input') }}
                       className={`relative flex flex-col items-center justify-center gap-2 px-3 py-6 rounded-2xl border text-sm font-medium transition-all ${
                         isSelected
-                          ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/50'
+                          ? 'bg-[#00FF9D]/10 border-[#00FF9D]/50 text-white'
                           : 'bg-white/[0.03] border-white/[0.08] text-white/60 hover:border-white/20 hover:text-white hover:bg-white/[0.05]'
                       }`}
                     >
                       <div className={`absolute top-2.5 right-2.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${
                         isSelected ? 'border-white bg-white' : 'border-white/20'
                       }`}>
-                        {isSelected && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                        {isSelected && <div className="w-2 h-2 rounded-full bg-[#00FF9D]" />}
                       </div>
                       <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded-full capitalize ${
                         isSelected ? 'bg-white/20 text-white' : CATEGORY_BADGE[m.category]
@@ -208,7 +200,7 @@ export default function UploadPage() {
                     key={m}
                     onClick={() => { setMode(m); setRecordingBlobUrl(null) }}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-mono transition-all ${
-                      mode === m ? 'bg-purple-600 text-white shadow-sm' : 'text-white/40 hover:text-white/70'
+                      mode === m ? 'bg-[#00FF9D] text-black shadow-sm' : 'text-white/40 hover:text-white/70'
                     }`}
                   >
                     {m === 'upload' ? <><Upload className="w-3.5 h-3.5" />Upload Video</> : <><Video className="w-3.5 h-3.5" />Record Live</>}
@@ -224,7 +216,7 @@ export default function UploadPage() {
                   onDragLeave={() => setDragOver(false)}
                   onClick={() => fileInputRef.current?.click()}
                   className={`relative border-2 border-dashed rounded-2xl p-12 flex flex-col items-center cursor-pointer transition-all ${
-                    dragOver ? 'border-purple-500 bg-purple-500/5' : 'border-white/[0.08] hover:border-white/20 bg-white/[0.02]'
+                    dragOver ? 'border-[#00FF9D] bg-[#00FF9D]/5' : 'border-white/[0.08] hover:border-white/20 bg-white/[0.02]'
                   }`}
                 >
                   <input ref={fileInputRef} type="file" accept="video/*" className="hidden"
@@ -232,7 +224,7 @@ export default function UploadPage() {
                   <AnimatePresence mode="wait">
                     {selectedFile ? (
                       <motion.div key="file" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
-                        <FileVideo className="w-10 h-10 text-purple-400 mx-auto mb-3" />
+                        <FileVideo className="w-10 h-10 text-[#00FF9D] mx-auto mb-3" />
                         <p className="text-sm font-semibold text-white">{selectedFile.name}</p>
                         <p className="text-xs text-white/30 mt-1">{(selectedFile.size / 1024 / 1024).toFixed(1)} MB</p>
                       </motion.div>
@@ -296,7 +288,7 @@ export default function UploadPage() {
                 <motion.button
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   onClick={handleUploadAndAnalyze}
-                  className="w-full mt-6 bg-purple-600 hover:bg-purple-500 text-white font-mono text-sm font-semibold rounded-full py-4 transition-all shadow-lg shadow-purple-900/40"
+                  className="w-full mt-6 bg-[#00FF9D] hover:bg-[#00e88a] text-black font-mono text-sm font-semibold rounded-full py-4 transition-all shadow-lg shadow-black/20"
                 >
                   Analyze {meta.label} →
                 </motion.button>

@@ -53,18 +53,18 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-[#0b0b0f]">
       {/* Ambient glows */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-        <div className="absolute top-[-8%] right-[-5%] w-[35%] h-[35%] bg-purple-700/15 blur-[140px] rounded-full" />
-        <div className="absolute bottom-[-10%] left-[-5%] w-[25%] h-[25%] bg-purple-900/10 blur-[120px] rounded-full" />
+        <div className="absolute top-[-8%] right-[-5%] w-[35%] h-[35%] bg-[#00FF9D]/3 blur-[140px] rounded-full" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-[25%] h-[25%] bg-[#00FF9D]/2 blur-[120px] rounded-full" />
       </div>
 
       {/* Header */}
       <header className="h-14 border-b border-white/[0.06] flex items-center justify-between px-8 sticky top-0 z-10 bg-[#0b0b0f]/95 backdrop-blur-md">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 bg-purple-600 rounded-lg flex items-center justify-center">
-              <Activity className="w-4 h-4 text-white" />
+            <div className="w-7 h-7 bg-[#00FF9D] rounded-lg flex items-center justify-center">
+              <Activity className="w-4 h-4 text-black" />
             </div>
-            <span className="text-sm font-semibold text-white tracking-tight">FORM</span>
+            <span className="text-sm font-semibold text-white tracking-tight" style={{ fontFamily: "'Orbitron', sans-serif" }}>KINETIX</span>
           </div>
           <nav className="hidden sm:flex items-center gap-1">
             {[
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/upload"
-            className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono rounded-full px-4 py-2 transition-all shadow-lg shadow-purple-900/30"
+            className="flex items-center gap-1.5 bg-[#00FF9D] hover:bg-[#00e88a] text-black text-xs font-mono rounded-full px-4 py-2 transition-all shadow-lg shadow-black/20"
           >
             <Plus className="w-3.5 h-3.5" />
             New Session
@@ -109,7 +109,7 @@ export default async function DashboardPage() {
               </span>
             )}
             {profile?.fitness_level && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-mono capitalize">
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#00FF9D]/10 border border-[#00FF9D]/20 text-[#00FF9D] text-xs font-mono capitalize">
                 {profile.fitness_level}
               </span>
             )}
@@ -124,7 +124,7 @@ export default async function DashboardPage() {
         {/* KPI strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { icon: <Target className="w-4 h-4 text-purple-400" />, label: 'Sessions', value: totalCount, sub: 'total analyzed' },
+            { icon: <Target className="w-4 h-4 text-[#00FF9D]" />, label: 'Sessions', value: totalCount, sub: 'total analyzed' },
             { icon: <TrendingUp className="w-4 h-4 text-green-400" />, label: 'Stability', value: avgStability ? `${avgStability}` : '—', sub: avgStability ? 'avg score' : 'no data yet' },
             { icon: <Zap className="w-4 h-4 text-blue-400" />, label: 'Alignment', value: avgAlignment ? `${avgAlignment}` : '—', sub: avgAlignment ? 'avg score' : 'no data yet' },
             { icon: <Clock className="w-4 h-4 text-white/40" />, label: 'Last Session', value: lastSessionDate ?? '—', sub: lastSession?.movement_type?.replace(/_/g, ' ') ?? 'no sessions yet' },
@@ -144,14 +144,14 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Primary CTA */}
           <Link href="/upload">
-            <div className="relative overflow-hidden bg-purple-600/10 border border-purple-500/20 hover:border-purple-500/40 rounded-2xl p-7 cursor-pointer transition-all group h-full">
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-purple-600/15 rounded-full blur-3xl group-hover:bg-purple-600/25 transition-colors" />
-              <div className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center mb-5">
-                <Plus className="w-5 h-5 text-purple-300" />
+            <div className="relative overflow-hidden bg-[#00FF9D]/10 border border-[#00FF9D]/20 hover:border-[#00FF9D]/30 rounded-2xl p-7 cursor-pointer transition-all group h-full">
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-[#00FF9D]/10 rounded-full blur-3xl group-hover:bg-[#00FF9D]/15 transition-colors" />
+              <div className="w-10 h-10 rounded-xl bg-[#00FF9D]/10 border border-[#00FF9D]/20 flex items-center justify-center mb-5">
+                <Plus className="w-5 h-5 text-[#00FF9D]" />
               </div>
               <h3 className="text-base font-semibold text-white mb-2">Analyze Movement</h3>
               <p className="text-sm text-white/40 leading-relaxed">Upload a video or record live for AI-powered biomechanical analysis with pose estimation.</p>
-              <div className="mt-5 text-xs font-mono text-purple-400 group-hover:text-purple-300 transition-colors">
+              <div className="mt-5 text-xs font-mono text-[#00FF9D] group-hover:text-[#00FF9D] transition-colors">
                 Start now →
               </div>
             </div>

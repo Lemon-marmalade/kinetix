@@ -5,12 +5,20 @@ import dynamic from 'next/dynamic'
 import type { Session } from '@/types'
 import IssueCard from '@/components/analysis/IssueCard'
 import AIFeedback from '@/components/analysis/AIFeedback'
-import ReferenceComparison from '@/components/analysis/ReferenceComparison'
-import { Activity, AlertTriangle, Activity as SkeletonIcon } from 'lucide-react'
-import Link from 'next/link'
+import { AlertTriangle, Activity as SkeletonIcon, BarChart2, Bot, CheckCircle, Clock, Layers } from 'lucide-react'
+import AppHeader from '@/components/ui/AppHeader'
+import { cn } from '@/lib/utils'
 
 const PoseOverlay = dynamic(() => import('@/components/pose/PoseOverlay'), { ssr: false })
 const ScoreGauges = dynamic(() => import('@/components/analysis/ScoreGauges'), { ssr: false })
+
+type RightTab = 'scores' | 'issues' | 'coach'
+
+const TAB_CONFIG: { id: RightTab; label: string; icon: React.ReactNode }[] = [
+  { id: 'scores', label: 'Scores',   icon: <BarChart2 className="w-3.5 h-3.5" /> },
+  { id: 'issues', label: 'Issues',   icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  { id: 'coach',  label: 'AI Coach', icon: <Bot className="w-3.5 h-3.5" /> },
+]
 
 interface SessionDetailClientProps {
   session: Session
@@ -18,38 +26,26 @@ interface SessionDetailClientProps {
 
 export default function SessionDetailClient({ session }: SessionDetailClientProps) {
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null)
-  const [feedbackLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<RightTab>(
+    (session.detected_issues ?? []).length > 0 ? 'issues' : 'scores'
+  )
 
   const frames = session.pose_skeleton_summary ?? session.pose_data ?? []
   const hasVideo = !!session.video_url
+  const issues = session.detected_issues ?? []
 
   return (
-    <div className="min-h-screen bg-[#050505]">
-      <header className="h-14 border-b border-zinc-800/50 flex items-center px-6 gap-4 sticky top-0 z-10 bg-[#050505]/90 backdrop-blur-md">
-        <Link href="/dashboard" className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors">
-          <div className="w-7 h-7 bg-purple-600 rounded flex items-center justify-center">
-            <Activity className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-xs font-mono uppercase tracking-widest">FORM</span>
-        </Link>
-        <span className="text-zinc-700">/</span>
-        <Link href="/dashboard" className="text-xs font-mono text-zinc-400 hover:text-white uppercase tracking-widest">
-          Dashboard
-        </Link>
-        <span className="text-zinc-700">/</span>
-        <span className="text-xs font-mono text-zinc-500 uppercase tracking-widest truncate max-w-[200px]">
-          {new Date(session.timestamp).toLocaleDateString()}
-        </span>
-      </header>
+    <div className="min-h-screen bg-[#050505] flex flex-col">
+      <AppHeader />
 
-      <main className="flex flex-col lg:flex-row h-[calc(100vh-56px)]">
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left: video / skeleton */}
-        <div className="lg:w-3/5 p-6 flex flex-col gap-4 overflow-y-auto">
+        <div className="lg:w-[58%] flex flex-col p-5 gap-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-zinc-800/50">
           {hasVideo ? (
             <PoseOverlay
               videoSrc={session.video_url!}
               frames={frames}
-              detectedIssues={session.detected_issues ?? []}
+              detectedIssues={issues}
               activeIssueId={activeIssueId}
               movementType={session.movement_type}
             />
@@ -61,55 +57,115 @@ export default function SessionDetailClient({ session }: SessionDetailClientProp
             </div>
           )}
 
-          <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-500">
-            <span>Movement: <span className="text-zinc-300 capitalize">{session.movement_type.replace('_', ' ')}</span></span>
-            {session.duration_seconds && <span>Duration: <span className="text-zinc-300">{session.duration_seconds.toFixed(1)}s</span></span>}
-            {session.rep_count && <span>Reps: <span className="text-zinc-300">{session.rep_count}</span></span>}
+          <div className="flex flex-wrap gap-4">
+            {session.duration_seconds && (
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
+                <Clock className="w-3 h-3 text-zinc-700" />
+                Duration: <span className="text-zinc-400">{session.duration_seconds.toFixed(1)}s</span>
+              </div>
+            )}
+            {frames.length > 0 && (
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
+                <Layers className="w-3 h-3 text-zinc-700" />
+                Frames: <span className="text-zinc-400">{frames.length}</span>
+              </div>
+            )}
+            {issues.length > 0 && (
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
+                <AlertTriangle className="w-3 h-3 text-zinc-700" />
+                Issues: <span className="text-zinc-400">{issues.length}</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Right: analysis */}
-        <div className="lg:w-2/5 border-t lg:border-t-0 lg:border-l border-zinc-800 p-6 overflow-y-auto space-y-5">
-          {session.scores && <ScoreGauges scores={session.scores} />}
+        {/* Right: analysis panel with tabs */}
+        <div className="lg:w-[42%] flex flex-col overflow-hidden">
+          {/* Tab bar */}
+          <div className="flex items-center gap-1 px-5 pt-4 pb-3 border-b border-zinc-800/50 shrink-0">
+            {TAB_CONFIG.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono transition-all',
+                  activeTab === tab.id
+                    ? 'bg-zinc-800 text-white'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900'
+                )}
+              >
+                {tab.icon}
+                <span className="hidden sm:inline">{tab.label}</span>
+                {tab.id === 'issues' && issues.length > 0 && (
+                  <span className={cn(
+                    'w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center',
+                    issues.some(i => i.severity === 'severe') ? 'bg-red-500 text-white' : 'bg-orange-500 text-white'
+                  )}>
+                    {issues.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
 
-          {(session.detected_issues ?? []).length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-xs font-mono text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                Detected Issues ({session.detected_issues!.length})
-              </h3>
-              {session.detected_issues!.map(issue => (
-                <IssueCard
-                  key={issue.id}
-                  issue={issue}
-                  isActive={activeIssueId === issue.id}
-                  onClick={() => setActiveIssueId(activeIssueId === issue.id ? null : issue.id)}
-                />
-              ))}
-            </div>
-          )}
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-          {frames.length > 0 && (
-            <ReferenceComparison
-              userFrames={frames}
-              movementType={session.movement_type}
-            />
-          )}
+            {/* Scores tab */}
+            {activeTab === 'scores' && (
+              session.scores
+                ? <ScoreGauges scores={session.scores} />
+                : <p className="text-sm text-zinc-600">No scores recorded for this session.</p>
+            )}
 
-          <AIFeedback
-            feedback={session.ai_feedback ?? null}
-            loading={feedbackLoading}
-            onRegenerate={() => {}}
-            onFeedbackReady={(text) => {
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('form:feedback-ready', {
-                  detail: { text, sessionId: session.id }
-                }))
-              }
-            }}
-          />
+            {/* Issues tab */}
+            {activeTab === 'issues' && (
+              <div className="space-y-3">
+                {issues.length === 0 ? (
+                  <div className="text-center py-10">
+                    <div className="w-12 h-12 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-3">
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-300 mb-1">No significant issues detected</p>
+                    <p className="text-xs text-zinc-600">Movement mechanics looked clean. Check AI Coach for tips.</p>
+                  </div>
+                ) : (
+                  issues.map(issue => {
+                    const firstFrameIdx = issue.frames[0] ?? 0
+                    const peakFrame = frames.find(f => f.frameIndex === firstFrameIdx)
+                      ?? frames[Math.min(firstFrameIdx, frames.length - 1)]
+                    return (
+                      <IssueCard
+                        key={issue.id}
+                        issue={issue}
+                        isActive={activeIssueId === issue.id}
+                        onClick={() => setActiveIssueId(activeIssueId === issue.id ? null : issue.id)}
+                        peakTimestamp={peakFrame?.timestamp}
+                      />
+                    )
+                  })
+                )}
+              </div>
+            )}
+
+            {/* AI Coach tab */}
+            {activeTab === 'coach' && (
+              <AIFeedback
+                feedback={session.ai_feedback ?? null}
+                loading={false}
+                onRegenerate={() => {}}
+                onFeedbackReady={(text) => {
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('form:feedback-ready', {
+                      detail: { text, sessionId: session.id }
+                    }))
+                  }
+                }}
+              />
+            )}
+          </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

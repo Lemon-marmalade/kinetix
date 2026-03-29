@@ -29,8 +29,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#0b0b0f] flex items-center justify-center p-6">
       {/* Ambient glows */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-        <div className="absolute top-[-15%] left-[-10%] w-[45%] h-[45%] bg-purple-700/20 blur-[150px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-purple-900/15 blur-[120px] rounded-full" />
+        <div className="absolute top-[-15%] left-[-10%] w-[45%] h-[45%] bg-[#00FF9D]/3 blur-[150px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-[#00FF9D]/2 blur-[120px] rounded-full" />
       </div>
 
       <motion.div
@@ -40,10 +40,10 @@ export default function LoginPage() {
         className="w-full max-w-sm"
       >
         <div className="flex items-center gap-3 mb-12">
-          <div className="w-9 h-9 bg-purple-600 rounded-xl flex items-center justify-center">
-            <Activity className="w-5 h-5 text-white" />
+          <div className="w-9 h-9 bg-[#00FF9D] rounded-xl flex items-center justify-center">
+            <Activity className="w-5 h-5 text-black" />
           </div>
-          <span className="text-sm font-bold tracking-widest text-white uppercase font-mono">FORM</span>
+          <span className="text-sm font-bold tracking-widest text-white uppercase font-mono">KINETIX</span>
         </div>
 
         <h2 className="text-4xl font-bold text-white mb-2 tracking-tight">Welcome back.</h2>
@@ -57,7 +57,7 @@ export default function LoginPage() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-purple-500/60 transition-colors"
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#00FF9D]/40 transition-colors"
               placeholder="athlete@example.com"
             />
           </div>
@@ -70,7 +70,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 pr-12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-purple-500/60 transition-colors"
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl px-4 py-3.5 pr-12 text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#00FF9D]/40 transition-colors"
                 placeholder="••••••••"
               />
               <button
@@ -92,7 +92,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-mono text-xs uppercase tracking-widest rounded-full px-4 py-3.5 transition-all shadow-lg shadow-purple-900/40 mt-2"
+            className="w-full bg-[#00FF9D] hover:bg-[#00e88a] disabled:opacity-50 disabled:cursor-not-allowed text-black font-mono text-xs uppercase tracking-widest rounded-full px-4 py-3.5 transition-all shadow-lg shadow-black/40 mt-2"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-sm text-white/30 text-center">
           Don&apos;t have an account?{' '}
-          <Link href="/signup" className="text-purple-400 hover:text-purple-300 transition-colors">
+          <Link href="/signup" className="text-[#00FF9D] hover:text-[#00FF9D] transition-colors">
             Sign up
           </Link>
         </p>

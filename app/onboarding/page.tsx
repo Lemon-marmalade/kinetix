@@ -100,17 +100,17 @@ export default function OnboardingPage() {
     <div className="min-h-screen bg-[#0b0b0f] flex flex-col">
       {/* Ambient glows */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
-        <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-purple-700/20 blur-[140px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-purple-900/15 blur-[120px] rounded-full" />
+        <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-[#00FF9D]/3 blur-[140px] rounded-full" />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[30%] bg-[#00FF9D]/2 blur-[120px] rounded-full" />
       </div>
 
       {/* Header */}
       <header className="h-14 flex items-center justify-between px-8">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-purple-600 rounded-lg flex items-center justify-center">
+          <div className="w-7 h-7 bg-[#00FF9D] rounded-lg flex items-center justify-center">
             <Activity className="w-4 h-4 text-white" />
           </div>
-          <span className="text-xs font-mono text-white/60 uppercase tracking-widest">FORM</span>
+          <span className="text-xs font-mono text-white/60 uppercase tracking-widest">KINETIX</span>
         </div>
         <button
           onClick={() => router.push('/dashboard')}
@@ -127,7 +127,7 @@ export default function OnboardingPage() {
             key={i}
             className={cn(
               'h-[2px] flex-1 rounded-full transition-all duration-300',
-              i <= step ? 'bg-purple-500' : 'bg-white/10'
+              i <= step ? 'bg-[#00FF9D]' : 'bg-white/10'
             )}
           />
         ))}
@@ -153,7 +153,7 @@ export default function OnboardingPage() {
                         className={cn(
                           'relative flex flex-col items-center justify-center gap-2 px-3 py-5 rounded-2xl border text-sm font-medium transition-all',
                           selected
-                            ? 'bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-900/50'
+                            ? 'bg-[#00FF9D]/10 border-[#00FF9D]/50 text-white'
                             : 'bg-white/[0.03] border-white/[0.08] text-white/60 hover:border-white/20 hover:text-white hover:bg-white/[0.05]'
                         )}
                       >
@@ -162,7 +162,7 @@ export default function OnboardingPage() {
                           'absolute top-2.5 right-2.5 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all',
                           selected ? 'border-white bg-white' : 'border-white/20'
                         )}>
-                          {selected && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                          {selected && <div className="w-2 h-2 rounded-full bg-[#00FF9D]" />}
                         </div>
                         <span className="text-xs font-mono font-semibold text-center leading-tight">{sport.id}</span>
                       </button>
@@ -187,7 +187,7 @@ export default function OnboardingPage() {
                         className={cn(
                           'relative w-full text-left px-6 py-5 rounded-2xl border transition-all',
                           selected
-                            ? 'bg-purple-600 border-purple-500 shadow-lg shadow-purple-900/50'
+                            ? 'bg-[#00FF9D]/10 border-[#00FF9D]/50'
                             : 'bg-white/[0.03] border-white/[0.08] hover:border-white/20 hover:bg-white/[0.05]'
                         )}
                       >
@@ -195,7 +195,7 @@ export default function OnboardingPage() {
                           'absolute top-4 right-5 w-4 h-4 rounded-full border-2 flex items-center justify-center',
                           selected ? 'border-white bg-white' : 'border-white/20'
                         )}>
-                          {selected && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                          {selected && <div className="w-2 h-2 rounded-full bg-[#00FF9D]" />}
                         </div>
                         <p className={cn('text-sm font-semibold mb-1', selected ? 'text-white' : 'text-white/80')}>{level.label}</p>
                         <p className={cn('text-xs', selected ? 'text-white/70' : 'text-white/35')}>{level.sub}</p>
@@ -268,7 +268,7 @@ export default function OnboardingPage() {
                         className={cn(
                           'relative w-full text-left px-6 py-5 rounded-2xl border transition-all',
                           selected
-                            ? 'bg-purple-600 border-purple-500 shadow-lg shadow-purple-900/50'
+                            ? 'bg-[#00FF9D]/10 border-[#00FF9D]/50'
                             : 'bg-white/[0.03] border-white/[0.08] hover:border-white/20 hover:bg-white/[0.05]'
                         )}
                       >
@@ -276,7 +276,7 @@ export default function OnboardingPage() {
                           'absolute top-4 right-5 w-4 h-4 rounded-full border-2 flex items-center justify-center',
                           selected ? 'border-white bg-white' : 'border-white/20'
                         )}>
-                          {selected && <div className="w-2 h-2 rounded-full bg-purple-600" />}
+                          {selected && <div className="w-2 h-2 rounded-full bg-[#00FF9D]" />}
                         </div>
                         <p className={cn('text-sm font-semibold mb-1', selected ? 'text-white' : 'text-white/80')}>{goal.label}</p>
                         <p className={cn('text-xs', selected ? 'text-white/70' : 'text-white/35')}>{goal.sub}</p>
@@ -306,7 +306,7 @@ export default function OnboardingPage() {
               className={cn(
                 'px-8 py-3 rounded-full text-sm font-mono font-semibold transition-all',
                 canProceed && !saving
-                  ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/40'
+                  ? 'bg-[#00FF9D] hover:bg-[#00e88a] text-black'
                   : 'bg-white/[0.05] text-white/25 cursor-not-allowed'
               )}
             >

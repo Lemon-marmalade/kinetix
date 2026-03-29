@@ -160,7 +160,7 @@ export default function SessionsList({ sessions }: { sessions: Session[] }) {
     return (
       <div className="bg-zinc-900/30 border border-zinc-800 border-dashed rounded-xl p-12 text-center">
         <p className="text-sm text-zinc-500">No sessions yet.</p>
-        <Link href="/upload" className="text-xs text-purple-400 hover:text-purple-300 mt-2 block transition-colors">
+        <Link href="/upload" className="text-xs text-[#00FF9D] hover:text-[#00FF9D] mt-2 block transition-colors">
           Upload your first video →
         </Link>
       </div>

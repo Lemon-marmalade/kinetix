@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import AppHeader from '@/components/ui/AppHeader'
 import {
   Activity, AlertTriangle, BarChart2, Bot, ChevronLeft, CheckCircle,
   Zap, Clock, Layers,
@@ -44,6 +45,7 @@ function AnalysisContent() {
     sessionId, videoBlobUrl, videoUrl, poseFrames, scores, detectedIssues,
     aiFeedback, movementType, durationSeconds, repCount,
     setPoseFrames, setScores, setDetectedIssues, setAiFeedback, setDuration,
+    setSessionId, setMovementType, setVideoUrl, setRepCount,
   } = useSessionStore()
 
   const { status, progress, errorMessage, activeIssueId, setStatus, setProgress, setError, setActiveIssueId } = useAnalysisStore()
@@ -54,12 +56,37 @@ function AnalysisContent() {
   const processingRef = useRef(false)
   const currentSessionId = searchParams.get('session') ?? sessionId
 
-  // Auto-switch to issues tab when analysis completes with issues found
+  useEffect(() => {
+    const urlSessionId = searchParams.get('session')
+    if (!urlSessionId) return
+    if (sessionId === urlSessionId && (scores || poseFrames.length > 0)) return
+
+    supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', urlSessionId)
+      .single()
+      .then(({ data }) => {
+        if (!data) return
+        setSessionId(data.id)
+        setMovementType(data.movement_type)
+        if (data.video_url) setVideoUrl(data.video_url)
+        if (data.duration_seconds) setDuration(data.duration_seconds)
+        if (data.rep_count) setRepCount(data.rep_count)
+        if (data.pose_skeleton_summary?.length) setPoseFrames(data.pose_skeleton_summary)
+        else if (data.pose_data?.length) setPoseFrames(data.pose_data)
+        if (data.detected_issues) setDetectedIssues(data.detected_issues)
+        if (data.scores) setScores(data.scores)
+        if (data.ai_feedback) setAiFeedback(data.ai_feedback)
+        setStatus('complete')
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   useEffect(() => {
     if (status === 'complete' && detectedIssues.length > 0) setActiveTab('issues')
   }, [status, detectedIssues.length])
 
-  // Auto-switch to coach tab when AI feedback arrives
   useEffect(() => {
     if (aiFeedback) setActiveTab('coach')
   }, [aiFeedback])
@@ -70,8 +97,6 @@ function AnalysisContent() {
     setStatus('processing')
 
     try {
-      // Always read directly from the Zustand store to avoid stale closure issues.
-      // useCallback captures values at render time; store.getState() always returns current.
       const storeSnapshot = useSessionStore.getState()
       let frames = storeSnapshot.poseFrames
       const preseededIssues = storeSnapshot.detectedIssues
@@ -80,10 +105,6 @@ function AnalysisContent() {
       let sessionDuration = storeSnapshot.durationSeconds
       const blobUrl = storeSnapshot.videoBlobUrl
 
-      // Skip re-extraction if frames were pre-seeded from live recording.
-      // If WASM failed during recording and frames are empty, we fall through to
-      // extraction — the video is now a raw camera stream (seekable, no overlay),
-      // so extraction will give correct results.
       if (!frames.length) {
         if (!blobUrl) throw new Error('No video source')
         const videoEl = document.createElement('video')
@@ -103,7 +124,6 @@ function AnalysisContent() {
 
       setProgress(80)
 
-      // Use pre-seeded issues from live detection; otherwise run fresh detection
       const issues = preseededIssues.length
         ? preseededIssues
         : detectIssues(frames, storedMovement)
@@ -146,7 +166,6 @@ function AnalysisContent() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analysis failed')
     } finally { processingRef.current = false }
-  // Stable deps only — all session data is read via getState() above
   }, [currentSessionId, setStatus, setProgress, setError, setPoseFrames, setDetectedIssues,
       setScores, setAiFeedback, setDuration, supabase])
 
@@ -181,7 +200,7 @@ function AnalysisContent() {
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
         <div className="text-center">
           <p className="text-zinc-400 mb-4">No video loaded.</p>
-          <Link href="/upload" className="text-purple-400 hover:text-purple-300 text-sm">Upload a video</Link>
+          <Link href="/upload" className="text-[#00FF9D] hover:text-[#00FF9D] text-sm">Upload a video</Link>
         </div>
       </div>
     )
@@ -190,28 +209,7 @@ function AnalysisContent() {
   return (
     <div className="min-h-screen bg-[#050505] flex flex-col">
       {/* Header */}
-      <header className="h-14 border-b border-zinc-800/50 flex items-center justify-between px-5 shrink-0 bg-[#050505]/95 backdrop-blur-md z-20">
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard" className="text-zinc-500 hover:text-white transition-colors">
-            <ChevronLeft className="w-4 h-4" />
-          </Link>
-          <div className="w-6 h-6 bg-purple-600 rounded-md flex items-center justify-center">
-            <Activity className="w-3.5 h-3.5 text-white" />
-          </div>
-          <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest">Analysis</span>
-          <span className="text-xs text-zinc-700">·</span>
-          <span className="text-xs font-mono text-zinc-500 capitalize">{movementType.replaceAll('_', ' ')}</span>
-        </div>
-
-        {isProcessing && (
-          <div className="flex items-center gap-2">
-            <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs text-zinc-500 font-mono">
-              {status === 'analyzing' ? 'Generating feedback...' : `${Math.round(progress)}%`}
-            </span>
-          </div>
-        )}
-      </header>
+      <AppHeader />
 
       {/* Error state */}
       {hasError && (
@@ -220,7 +218,7 @@ function AnalysisContent() {
             <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-4" />
             <h2 className="text-lg font-semibold text-white mb-2">Analysis Failed</h2>
             <p className="text-sm text-zinc-400 mb-6">{errorMessage}</p>
-            <button onClick={() => router.push('/upload')} className="bg-purple-600 hover:bg-purple-500 text-white font-mono text-xs uppercase tracking-widest rounded-xl px-6 py-3 transition-colors">
+            <button onClick={() => router.push('/upload')} className="bg-[#00FF9D] hover:bg-[#00e88a] text-black font-mono text-xs uppercase tracking-widest rounded-xl px-6 py-3 transition-colors">
               Try Again
             </button>
           </div>
@@ -267,7 +265,7 @@ function AnalysisContent() {
                   <div className="flex flex-wrap gap-2">
                     {keyMomentLabels.map(label => (
                       <div key={label} className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/60 border border-zinc-700/50 rounded-lg">
-                        <Zap className="w-2.5 h-2.5 text-purple-400" />
+                        <Zap className="w-2.5 h-2.5 text-[#00FF9D]" />
                         <span className="text-[10px] font-mono text-zinc-400">{label}</span>
                       </div>
                     ))}
@@ -339,15 +337,20 @@ function AnalysisContent() {
                     </div>
                   )}
 
-                  {detectedIssues.map((issue, i) => (
-                    <IssueCard
-                      key={issue.id}
-                      issue={issue}
-                      isActive={activeIssueId === issue.id}
-                      onClick={() => handleIssueClick(issue)}
-                      index={i}
-                    />
-                  ))}
+                  {detectedIssues.map((issue, i) => {
+                    const firstFrameIdx = issue.frames[0] ?? 0
+                    const peakFrame = poseFrames[Math.min(firstFrameIdx, poseFrames.length - 1)]
+                    return (
+                      <IssueCard
+                        key={issue.id}
+                        issue={issue}
+                        isActive={activeIssueId === issue.id}
+                        onClick={() => handleIssueClick(issue)}
+                        index={i}
+                        peakTimestamp={peakFrame?.timestamp}
+                      />
+                    )
+                  })}
                 </div>
               )}
 
@@ -375,7 +378,7 @@ export default function AnalysisPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-6 h-6 border-2 border-[#00FF9D] border-t-transparent rounded-full animate-spin" />
       </div>
     }>
       <AnalysisContent />

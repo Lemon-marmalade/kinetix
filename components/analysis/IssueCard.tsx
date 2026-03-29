@@ -19,9 +19,10 @@ interface IssueCardProps {
   isActive: boolean
   onClick: () => void
   index?: number
+  peakTimestamp?: number
 }
 
-export default function IssueCard({ issue, isActive, onClick, index = 0 }: IssueCardProps) {
+export default function IssueCard({ issue, isActive, onClick, index = 0, peakTimestamp }: IssueCardProps) {
   const [showClinical, setShowClinical] = useState(false)
   const cfg = SEV_CONFIG[issue.severity]
   const meta = ISSUE_META[issue.type]
@@ -55,9 +56,9 @@ export default function IssueCard({ issue, isActive, onClick, index = 0 }: Issue
               <span className={cn('text-[10px] font-mono uppercase px-2 py-0.5 rounded-full border', cfg.badge)}>
                 {issue.severity}
               </span>
-              {isActive && (
-                <span className="text-[10px] font-mono text-purple-400 flex items-center gap-1">
-                  <Zap className="w-2.5 h-2.5" /> Highlighted
+              {peakTimestamp !== undefined && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700">
+                  {peakTimestamp.toFixed(1)}s
                 </span>
               )}
             </div>
@@ -65,12 +66,19 @@ export default function IssueCard({ issue, isActive, onClick, index = 0 }: Issue
             {/* Description */}
             <p className="text-[11px] text-zinc-400 leading-relaxed mb-2">{issue.description}</p>
 
-            {/* Joints + frames */}
+            {/* Joints + frames + active indicator */}
             <div className="flex flex-wrap gap-3 text-[10px] text-zinc-600">
               {jointNames && <span>Joints: <span className="text-zinc-400">{jointNames}</span></span>}
               <span>{issue.frames.length} frames flagged</span>
               {issue.peakValue !== undefined && <span>Peak: <span className="text-zinc-400">{issue.peakValue}</span></span>}
             </div>
+
+            {isActive && peakTimestamp !== undefined && (
+              <div className="mt-2 flex items-center gap-1.5 text-[10px] font-mono text-[#00FF9D]">
+                <Zap className="w-2.5 h-2.5" />
+                Skeleton &amp; video jumped to {peakTimestamp.toFixed(1)}s
+              </div>
+            )}
           </div>
 
           <ChevronRight className={cn('w-3.5 h-3.5 shrink-0 text-zinc-600 transition-transform mt-0.5', isActive && 'rotate-90 text-purple-400')} />

@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { UserProfile, PastInjury, Session } from '@/types'
 import { MOVEMENT_META } from '@/types'
 import { cn } from '@/lib/utils'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 
 interface Props {
   profile: UserProfile
@@ -143,7 +143,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
           <Link href="/dashboard" className="text-zinc-500 hover:text-white transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </Link>
-          <div className="w-6 h-6 bg-purple-600 rounded-md flex items-center justify-center">
+          <div className="w-6 h-6 bg-[#00FF9D] rounded-md flex items-center justify-center">
             <Activity className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest">Profile</span>
@@ -158,7 +158,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                 <button onClick={() => { setEditing(false); setSaveError(null) }} className="text-xs font-mono text-zinc-500 hover:text-white px-3 py-1.5 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={handleSave} disabled={saving} className="text-xs font-mono bg-purple-600 hover:bg-purple-500 text-white px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                <button onClick={handleSave} disabled={saving} className="text-xs font-mono bg-[#00FF9D] hover:bg-[#00e88a] text-black px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50">
                   {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
@@ -174,7 +174,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
       {/* Identity card — always visible */}
       <div className="border-b border-zinc-800/60 px-6 py-5">
         <div className="max-w-3xl mx-auto flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-purple-600/20 border border-purple-500/30 flex items-center justify-center text-xl font-bold text-purple-300 shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-[#00FF9D]/10 border border-[#00FF9D]/20 flex items-center justify-center text-xl font-bold text-[#00FF9D] shrink-0">
             {(form.name || userEmail)?.[0]?.toUpperCase() ?? '?'}
           </div>
           <div className="flex-1 min-w-0">
@@ -241,15 +241,15 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                     <div className="grid grid-cols-2 gap-3">
                       <input value={form.name ?? ''} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                         placeholder="Full name"
-                        className="col-span-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500" />
+                        className="col-span-2 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#00FF9D]/40" />
                       <select value={form.sport ?? ''} onChange={e => setForm(p => ({ ...p, sport: e.target.value }))}
-                        className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                        className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00FF9D]/40">
                         <option value="">Sport</option>
                         {SPORTS.map(s => <option key={s}>{s}</option>)}
                       </select>
                       <input value={form.position ?? ''} onChange={e => setForm(p => ({ ...p, position: e.target.value }))}
                         placeholder="Position / role"
-                        className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500" />
+                        className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#00FF9D]/40" />
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {[
@@ -260,13 +260,13 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                         <div key={field}>
                           <label className="text-[10px] font-mono text-zinc-500 block mb-1">{label}</label>
                           <input type="number" value={form[field] ?? ''} onChange={e => setForm(p => ({ ...p, [field]: Number(e.target.value) || undefined }))}
-                            placeholder={placeholder} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500" />
+                            placeholder={placeholder} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00FF9D]/40" />
                         </div>
                       ))}
                       <div>
                         <label className="text-[10px] font-mono text-zinc-500 block mb-1">Dominant</label>
                         <select value={form.dominant_side ?? ''} onChange={e => setForm(p => ({ ...p, dominant_side: e.target.value as 'left' | 'right' }))}
-                          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500">
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00FF9D]/40">
                           <option value="">—</option>
                           <option value="right">Right</option>
                           <option value="left">Left</option>
@@ -279,7 +279,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                         {FITNESS_LEVELS.map(l => (
                           <button key={l} onClick={() => setForm(p => ({ ...p, fitness_level: l }))}
                             className={cn('px-3 py-1.5 rounded-lg text-xs font-mono capitalize transition-colors border',
-                              form.fitness_level === l ? 'bg-purple-600 border-purple-500 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600')}>
+                              form.fitness_level === l ? 'bg-[#00FF9D]/10 border-[#00FF9D]/50 text-white' : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600')}>
                             {l}
                           </button>
                         ))}
@@ -352,7 +352,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                         <div>
                           <label className="text-[10px] font-mono text-zinc-500 block mb-1">Body Part</label>
                           <select value={newInjury.bodyPart ?? ''} onChange={e => setNewInjury(p => ({ ...p, bodyPart: e.target.value }))}
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00FF9D]/40">
                             <option value="">Select…</option>
                             {BODY_PARTS.map(b => <option key={b}>{b}</option>)}
                           </select>
@@ -360,7 +360,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                         <div>
                           <label className="text-[10px] font-mono text-zinc-500 block mb-1">Injury Type</label>
                           <select value={newInjury.injuryType ?? ''} onChange={e => setNewInjury(p => ({ ...p, injuryType: e.target.value }))}
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00FF9D]/40">
                             <option value="">Select…</option>
                             {INJURY_TYPES.map(t => <option key={t}>{t}</option>)}
                           </select>
@@ -370,22 +370,22 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                         <div>
                           <label className="text-[10px] font-mono text-zinc-500 block mb-1">Date (approx.)</label>
                           <input type="month" value={newInjury.date ?? ''} onChange={e => setNewInjury(p => ({ ...p, date: e.target.value }))}
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500" />
+                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#00FF9D]/40" />
                         </div>
                         <div className="flex items-end pb-2">
                           <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
                             <input type="checkbox" checked={newInjury.recovered ?? false}
                               onChange={e => setNewInjury(p => ({ ...p, recovered: e.target.checked }))}
-                              className="accent-purple-500" />
+                              className="accent-[#00FF9D]" />
                             Fully recovered
                           </label>
                         </div>
                       </div>
                       <input placeholder="Notes (optional)" value={newInjury.notes ?? ''}
                         onChange={e => setNewInjury(p => ({ ...p, notes: e.target.value }))}
-                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500" />
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#00FF9D]/40" />
                       <div className="flex gap-2">
-                        <button onClick={addInjury} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs font-mono rounded-lg py-2 transition-colors">
+                        <button onClick={addInjury} className="flex-1 bg-[#00FF9D] hover:bg-[#00e88a] text-black text-xs font-mono rounded-lg py-2 transition-colors">
                           Add Injury
                         </button>
                         <button onClick={() => setShowAddInjury(false)} className="text-xs text-zinc-500 hover:text-white px-3 transition-colors">Cancel</button>
@@ -400,7 +400,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { icon: <Calendar className="w-4 h-4 text-purple-400" />, label: 'Sessions', value: sessions.length },
+                      { icon: <Calendar className="w-4 h-4 text-[#00FF9D]" />, label: 'Sessions', value: sessions.length },
                       { icon: <TrendingUp className="w-4 h-4 text-green-400" />, label: 'Avg Stability', value: avgStab ? avgStab.toFixed(1) : '—' },
                       { icon: <Shield className="w-4 h-4 text-orange-400" />, label: 'Avg Risk', value: avgRisk ? avgRisk.toFixed(1) : '—' },
                     ].map(({ icon, label, value }) => (
@@ -420,21 +420,24 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                       </p>
                       <div className="h-36">
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chartData} margin={{ top: 0, right: 0, left: -25, bottom: 0 }}>
-                            <XAxis dataKey="i" tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 10]} tick={{ fill: '#52525b', fontSize: 10 }} axisLine={false} tickLine={false} />
-                            <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 11 }}
-                              itemStyle={{ color: '#e4e4e7' }} labelStyle={{ color: '#71717a' }} />
-                            <Bar dataKey="stability" name="Stability" fill="#22c55e" radius={[3, 3, 0, 0]} opacity={0.8} />
-                            <Bar dataKey="alignment" name="Alignment" fill="#3b82f6" radius={[3, 3, 0, 0]} opacity={0.8} />
-                            <Bar dataKey="risk" name="Risk" fill="#ef4444" radius={[3, 3, 0, 0]} opacity={0.6} />
-                          </BarChart>
+                          <LineChart data={chartData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,255,157,0.06)" vertical={false} />
+                            <XAxis dataKey="i" tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
+                            <YAxis domain={[0, 10]} tick={{ fill: '#52525b', fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
+                            <Tooltip
+                              contentStyle={{ background: '#0f0f0f', border: '1px solid #00FF9D33', borderRadius: 8, fontSize: 11 }}
+                              itemStyle={{ color: '#e4e4e7' }}
+                              labelStyle={{ color: '#71717a' }}
+                            />
+                            <Line dataKey="stability" name="Stability" stroke="#00FF9D" strokeWidth={2} dot={{ fill: '#00FF9D', r: 3, strokeWidth: 0 }} activeDot={{ r: 5, fill: '#00FF9D', boxShadow: '0 0 8px #00FF9D' }} />
+                            <Line dataKey="alignment" name="Alignment" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6', r: 3, strokeWidth: 0 }} activeDot={{ r: 5, fill: '#3b82f6' }} />
+                          </LineChart>
                         </ResponsiveContainer>
                       </div>
                       <div className="flex gap-4 mt-2">
-                        {[['Stability', '#22c55e'], ['Alignment', '#3b82f6'], ['Risk', '#ef4444']].map(([label, color]) => (
+                        {[['Stability', '#00FF9D'], ['Alignment', '#3b82f6']].map(([label, color]) => (
                           <div key={label} className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-sm" style={{ background: color }} />
+                            <div className="w-8 h-0.5 rounded-full" style={{ background: color }} />
                             <span className="text-[10px] font-mono text-zinc-500">{label}</span>
                           </div>
                         ))}
@@ -499,7 +502,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
                 </h3>
                 {movementTypes.length > 1 && (
                   <select value={historyFilter} onChange={e => setHistoryFilter(e.target.value)}
-                    className="bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-purple-500">
+                    className="bg-zinc-800 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-[#00FF9D]/40">
                     <option value="all">All movements</option>
                     {movementTypes.map(t => t && (
                       <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>
@@ -511,7 +514,7 @@ export default function ProfileClient({ profile, sessions, userEmail }: Props) {
               {filteredSessions.length === 0 && (
                 <div className="bg-zinc-900/30 border border-zinc-800 border-dashed rounded-xl p-8 text-center">
                   <p className="text-sm text-zinc-500">No sessions yet.</p>
-                  <Link href="/upload" className="text-xs text-purple-400 hover:text-purple-300 mt-2 block transition-colors">
+                  <Link href="/upload" className="text-xs text-[#00FF9D] hover:text-[#00FF9D] mt-2 block transition-colors">
                     Analyze your first movement →
                   </Link>
                 </div>
@@ -738,10 +741,10 @@ function PersonalizedInsights({ sport, fitnessLevel, injuries, topIssues }: Insi
   if (!hasContent) return null
 
   return (
-    <div className="bg-zinc-900/40 border border-purple-500/20 rounded-2xl p-5 space-y-5">
+    <div className="bg-zinc-900/40 border border-[#00FF9D]/15 rounded-2xl p-5 space-y-5">
       <div className="flex items-center gap-2">
-        <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-        <h3 className="text-xs font-mono text-purple-300 uppercase tracking-widest">Personalized Insights</h3>
+        <div className="w-1.5 h-1.5 rounded-full bg-[#00FF9D]" />
+        <h3 className="text-xs font-mono text-[#00FF9D] uppercase tracking-widest">Personalized Insights</h3>
       </div>
 
       {/* Active injury protocols */}
