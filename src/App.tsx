@@ -13,10 +13,19 @@ export default function App() {
   const [selectedExercise, setSelectedExercise] = useState<ExerciseReference>(EXERCISES[0]);
   const [isRecording, setIsRecording] = useState(false);
   const [viewMode, setViewMode] = useState<'split' | 'focus'>('split');
+  const [sessionFrames, setSessionFrames] = useState<Results[]>([]);
 
   const handleResults = useCallback((res: Results) => {
     setResults(res);
-  }, []);
+    if (isRecording) {
+      setSessionFrames(prev => [...prev, res]);
+    }
+  }, [isRecording]);
+
+  const toggleRecording = () => {
+    if (!isRecording) setSessionFrames([]); // Clear previous session when starting new
+    setIsRecording(!isRecording);
+  };
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-purple-500/30">
@@ -131,7 +140,7 @@ export default function App() {
                   <div className="flex items-center gap-4">
                     <button 
                       type="button"
-                      onClick={() => setIsRecording(!isRecording)}
+                      onClick={toggleRecording}
                       className={cn(
                         "px-6 py-2 rounded-full text-[10px] font-mono uppercase tracking-widest transition-all cursor-pointer z-30",
                         isRecording 
@@ -203,7 +212,7 @@ export default function App() {
 
             {/* Right Sidebar: Feedback & Metrics */}
             <div className="lg:col-span-3 overflow-y-auto custom-scrollbar">
-              <FeedbackPanel results={results} selectedExercise={selectedExercise} />
+              <FeedbackPanel results={results} selectedExercise={selectedExercise} sessionFrames={sessionFrames} />
             </div>
           </>
         ) : (
