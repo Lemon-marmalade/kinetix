@@ -181,18 +181,15 @@ function App() {
               {isRecording ? 'STOP WORKOUT' : 'START WORKOUT'}
             </button>
             <button
-              className="px-6 py-3 rounded-xl font-semibold border-2 transition-all duration-300 hover:scale-105"
-              style={{
-                borderColor: '#3b82f6',
-                color: '#3b82f6',
-                background: 'rgba(59, 130, 246, 0.1)',
-                boxShadow: '0 0 20px rgba(59, 130, 246, 0.3)',
-                fontFamily: "'Tiro Tamil', serif",
-              }}
-              onClick={() => setIsRecording(false)}
+<<<<<<< HEAD
+
+              onClick={() => setShowHealthProfile(true)}
+              className="px-6 py-3 rounded-xl font-semibold border-2 border-blue-400 text-blue-300 hover:bg-blue-500/20 transition duration-300"
             >
-              PAUSE
+              Health Profile
             </button>
+
+>>>>>>> 4cd930e (Remove unnecessary PAUSE button)
           </div>
         </header>
 
