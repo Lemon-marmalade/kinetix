@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 interface AIFeedbackProps {
   feedback: string | null
   loading: boolean
+  error?: string | null
   onRegenerate: () => void
   onFeedbackReady?: (text: string) => void
 }
@@ -28,7 +29,7 @@ function parseFeedback(text: string): { wellDone: string; recommendations: strin
   }
 }
 
-export default function AIFeedback({ feedback, loading, onRegenerate, onFeedbackReady }: AIFeedbackProps) {
+export default function AIFeedback({ feedback, loading, error, onRegenerate, onFeedbackReady }: AIFeedbackProps) {
   const [displayed, setDisplayed]   = useState('')
   const [typing, setTyping]         = useState(false)
   const [speaking, setSpeaking]     = useState(false)
@@ -134,6 +135,12 @@ export default function AIFeedback({ feedback, loading, onRegenerate, onFeedback
       </div>
 
       <div className="min-h-[80px]">
+        {error && (
+          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">
+            <p className="text-xs text-red-200">{error}</p>
+          </div>
+        )}
+
         {loading && !feedback && (
           <div className="flex items-center gap-2 text-zinc-500">
             <div className="flex gap-1">

@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import dynamic from 'next/dynamic'
+import { useRouter } from 'next/navigation'
 import type { Session } from '@/types'
 import IssueCard from '@/components/analysis/IssueCard'
 import AIFeedback from '@/components/analysis/AIFeedback'
-import { AlertTriangle, Activity as SkeletonIcon, BarChart2, Bot, CheckCircle, Clock, Layers } from 'lucide-react'
+import { AlertTriangle, Activity as SkeletonIcon, BarChart2, Bot, CheckCircle, Clock, Layers, Loader2, Trash2 } from 'lucide-react'
 import AppHeader from '@/components/ui/AppHeader'
 import { cn } from '@/lib/utils'
+import { deleteSession } from '@/app/sessions/actions'
 
 const PoseOverlay = dynamic(() => import('@/components/pose/PoseOverlay'), { ssr: false })
 const ScoreGauges = dynamic(() => import('@/components/analysis/ScoreGauges'), { ssr: false })
@@ -25,14 +27,31 @@ interface SessionDetailClientProps {
 }
 
 export default function SessionDetailClient({ session }: SessionDetailClientProps) {
+  const router = useRouter()
   const [activeIssueId, setActiveIssueId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<RightTab>(
     (session.detected_issues ?? []).length > 0 ? 'issues' : 'scores'
   )
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
 
   const frames = session.pose_skeleton_summary ?? session.pose_data ?? []
   const hasVideo = !!session.video_url
   const issues = session.detected_issues ?? []
+
+  const handleDelete = () => {
+    startTransition(async () => {
+      setDeleteError(null)
+      const result = await deleteSession(session.id)
+      if (result.error) {
+        setDeleteError(result.error)
+        return
+      }
+      router.push('/sessions')
+      router.refresh()
+    })
+  }
 
   return (
     <div className="min-h-screen bg-[#050505] flex flex-col">
@@ -41,6 +60,47 @@ export default function SessionDetailClient({ session }: SessionDetailClientProp
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left: video / skeleton */}
         <div className="lg:w-[58%] flex flex-col p-5 gap-4 overflow-y-auto border-b lg:border-b-0 lg:border-r border-zinc-800/50">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-semibold text-white capitalize">
+                {session.movement_type.replace(/_/g, ' ')}
+              </h1>
+              <p className="text-xs text-zinc-500">Session detail</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {deleteError && (
+                <span className="text-xs text-red-400">{deleteError}</span>
+              )}
+              {confirmingDelete ? (
+                <>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={isPending}
+                    className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-xs text-white transition-colors disabled:opacity-50"
+                  >
+                    {isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                    Delete
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-900/50 bg-red-950/30 text-xs text-red-300 hover:bg-red-950/50 transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Delete Session
+                </button>
+              )}
+            </div>
+          </div>
+
           {hasVideo ? (
             <PoseOverlay
               videoSrc={session.video_url!}
@@ -153,6 +213,7 @@ export default function SessionDetailClient({ session }: SessionDetailClientProp
               <AIFeedback
                 feedback={session.ai_feedback ?? null}
                 loading={false}
+                error={null}
                 onRegenerate={() => {}}
                 onFeedbackReady={(text) => {
                   if (typeof window !== 'undefined') {

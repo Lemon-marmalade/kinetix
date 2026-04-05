@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const VOICE_ID = process.env.ELEVENLABS_VOICE_ID ?? '21m00Tcm4TlvDq8ikWAM'
+const API_KEY = process.env.ELEVENLABS_API_KEY ?? process.env.NEXT_PUBLIC_ELEVENLABS_API_KEY
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ELEVENLABS_API_KEY
-  if (!apiKey) {
+  if (!API_KEY) {
     return NextResponse.json({ error: 'ElevenLabs not configured' }, { status: 503 })
   }
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}/stream`,
     {
       method: 'POST',
-      headers: { 'xi-api-key': apiKey, 'Content-Type': 'application/json' },
+      headers: { 'xi-api-key': API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         text,
         model_id: 'eleven_turbo_v2',

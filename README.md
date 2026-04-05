@@ -16,5 +16,8 @@ View your app in AI Studio: https://ai.studio/apps/e0048010-bbc6-4bd7-8a70-416ea
 1. Install dependencies:
    `npm install`
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+3. Set `ELEVENLABS_API_KEY` in `.env.local` if you want voice playback for the AI coach
+4. Optional: set `ELEVENLABS_VOICE_ID` to use a custom ElevenLabs voice
+5. Optional: set `MOCK_AI_COACH=true` to bypass Gemini and test the AI Coach UI locally
+6. Run the app:
    `npm run dev`

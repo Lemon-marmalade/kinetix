@@ -21,6 +21,11 @@ Write 2 to 3 short, specific coaching cues to fix the detected issues. One sente
 
 Rules: no markdown, no bullet points, no asterisks, no brackets. Plain conversational sentences only. Under 100 words total. Write as if speaking directly to the athlete.`
 
+function toSentenceCase(text: string): string {
+  if (!text) return text
+  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase()
+}
+
 export function buildAnalysisPrompt(input: GeminiAnalysisInput): string {
   const { movementType, detectedIssues, scores, topDeviatedJoints, repCount, duration } = input
 
@@ -28,7 +33,7 @@ export function buildAnalysisPrompt(input: GeminiAnalysisInput): string {
   const issuesSummary = detectedIssues.length === 0
     ? 'No significant issues detected.'
     : detectedIssues.map(i =>
-        `- ${i.type.replace(/_/g, ' ')} (${i.severity}): ${i.description}`
+        `- ${toSentenceCase(i.type.replace(/_/g, ' '))} (${i.severity}): ${i.description}`
       ).join('\n')
 
   return `Movement: ${movementLabel}

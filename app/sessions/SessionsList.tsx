@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
-import { AlertTriangle, ChevronRight, Trash2, Loader2, X } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Trash2, Loader2 } from 'lucide-react'
 import { deleteSession } from './actions'
 import type { Session } from '@/types'
 
@@ -50,6 +50,7 @@ function ConfirmDialog({ onConfirm, onCancel, isPending }: {
 function SessionRow({ session, index }: { session: Session; index: number }) {
   const [confirming, setConfirming] = useState(false)
   const [deleted, setDeleted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const date = new Date(session.timestamp)
@@ -60,8 +61,13 @@ function SessionRow({ session, index }: { session: Session; index: number }) {
 
   const handleDelete = () => {
     startTransition(async () => {
+      setError(null)
       const result = await deleteSession(session.id)
-      if (!result.error) setDeleted(true)
+      if (result.error) {
+        setError(result.error)
+        return
+      }
+      setDeleted(true)
     })
   }
 
@@ -146,10 +152,14 @@ function SessionRow({ session, index }: { session: Session; index: number }) {
               className="p-2 rounded-lg text-zinc-700 hover:text-red-400 hover:bg-red-950/40 transition-colors"
               title="Delete session"
             >
-              <X className="w-3.5 h-3.5" />
+              <Trash2 className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
+
+        {error && (
+          <p className="mt-2 text-xs text-red-400">{error}</p>
+        )}
       </motion.div>
     </AnimatePresence>
   )

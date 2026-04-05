@@ -51,6 +51,7 @@ function AnalysisContent() {
   const { status, progress, errorMessage, activeIssueId, setStatus, setProgress, setError, setActiveIssueId } = useAnalysisStore()
 
   const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<RightTab>('scores')
   const [keyMomentLabels, setKeyMomentLabels] = useState<string[]>([])
   const processingRef = useRef(false)
@@ -88,8 +89,8 @@ function AnalysisContent() {
   }, [status, detectedIssues.length])
 
   useEffect(() => {
-    if (aiFeedback) setActiveTab('coach')
-  }, [aiFeedback])
+    if (aiFeedback || feedbackError) setActiveTab('coach')
+  }, [aiFeedback, feedbackError])
 
   const runAnalysis = useCallback(async () => {
     if (processingRef.current) return
@@ -139,6 +140,7 @@ function AnalysisContent() {
 
       setStatus('analyzing')
       setFeedbackLoading(true)
+      setFeedbackError(null)
       let feedback = ''
       try {
         feedback = await generateCoachingFeedback({
@@ -148,6 +150,7 @@ function AnalysisContent() {
         setAiFeedback(feedback)
       } catch (feedbackErr) {
         console.error('[AI Coach] feedback generation failed:', feedbackErr)
+        setFeedbackError(feedbackErr instanceof Error ? feedbackErr.message : 'Failed to generate AI coaching feedback.')
       }
       setFeedbackLoading(false)
 
@@ -177,6 +180,7 @@ function AnalysisContent() {
   const handleRegenerate = async () => {
     if (!scores) return
     setFeedbackLoading(true)
+    setFeedbackError(null)
     try {
       const feedback = await generateCoachingFeedback({
         movementType, detectedIssues, scores,
@@ -184,7 +188,9 @@ function AnalysisContent() {
       })
       setAiFeedback(feedback)
       if (currentSessionId) await supabase.from('sessions').update({ ai_feedback: feedback }).eq('id', currentSessionId)
-    } catch { /* silent */ } finally { setFeedbackLoading(false) }
+    } catch (err) {
+      setFeedbackError(err instanceof Error ? err.message : 'Failed to generate AI coaching feedback.')
+    } finally { setFeedbackLoading(false) }
   }
 
   const handleIssueClick = useCallback((issue: DetectedIssue) => {
@@ -359,6 +365,7 @@ function AnalysisContent() {
                 <AIFeedback
                   feedback={aiFeedback}
                   loading={feedbackLoading}
+                  error={feedbackError}
                   onRegenerate={handleRegenerate}
                   onFeedbackReady={text => {
                     if (typeof window !== 'undefined')

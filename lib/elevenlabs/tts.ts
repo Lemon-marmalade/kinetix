@@ -7,19 +7,20 @@ const urlCache = new Map<string, string>() // text → object URL
 let lastSpokenAt = 0
 const MIN_INTERVAL_MS = 2500
 
-async function fetchUrl(text: string): Promise<string | null> {
-  try {
-    const res = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    })
-    if (!res.ok) return null
-    const blob = await res.blob()
-    return URL.createObjectURL(blob)
-  } catch {
-    return null
+async function fetchUrl(text: string): Promise<string> {
+  const res = await fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null) as { error?: string } | null
+    throw new Error(body?.error ?? 'Text-to-speech request failed')
   }
+
+  const blob = await res.blob()
+  return URL.createObjectURL(blob)
 }
 
 function playUrl(url: string, onEnd?: () => void): HTMLAudioElement {
@@ -42,8 +43,7 @@ export async function speak(text: string, interrupt = false): Promise<void> {
 
   let url = urlCache.get(text)
   if (!url) {
-    url = await fetchUrl(text) ?? undefined
-    if (!url) return
+    url = await fetchUrl(text)
     urlCache.set(text, url)
   }
 
@@ -54,8 +54,12 @@ export async function speak(text: string, interrupt = false): Promise<void> {
 export function preload(texts: string[]): void {
   texts.forEach(async (t) => {
     if (urlCache.has(t)) return
-    const url = await fetchUrl(t)
-    if (url) urlCache.set(t, url)
+    try {
+      const url = await fetchUrl(t)
+      urlCache.set(t, url)
+    } catch {
+      // Ignore preload failures; playback path can still fall back later.
+    }
   })
 }
 
