@@ -76,7 +76,17 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
       if (elapsedRef.current)     clearInterval(elapsedRef.current)
       if (detectionTimerRef.current) clearInterval(detectionTimerRef.current)
       if (idleTimerRef.current)   clearInterval(idleTimerRef.current)
-      ;(poseRef.current as { close?: () => void })?.close?.()
+      const pose = poseRef.current as { close?: () => Promise<void> | void } | null
+      if (pose?.close) {
+        try {
+          const result = pose.close()
+          if (result && typeof (result as Promise<void>).catch === 'function') {
+            void (result as Promise<void>).catch(() => {})
+          }
+        } catch {
+          // Ignore cleanup-time MediaPipe failures from partially initialized instances.
+        }
+      }
       voiceCoach.stop()
     }
   }, [])
@@ -333,7 +343,7 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
             >
               {state === 'requesting' ? (
                 <>
-                  <Loader2 className="w-10 h-10 text-purple-400 animate-spin mb-3" />
+                  <Loader2 className="w-10 h-10 text-[#00FF9D] animate-spin mb-3" />
                   <p className="text-sm text-white/60 font-mono">Initialising camera & pose model…</p>
                 </>
               ) : (
@@ -360,7 +370,7 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
         {/* Processing overlay */}
         {state === 'processing' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
-            <Loader2 className="w-8 h-8 text-purple-400 animate-spin mb-3" />
+            <Loader2 className="w-8 h-8 text-[#00FF9D] animate-spin mb-3" />
             <p className="text-sm text-white/60 font-mono">Analysing recording…</p>
           </div>
         )}
@@ -389,7 +399,7 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
             className={cn(
               'absolute top-3 right-3 p-2 rounded-full backdrop-blur-sm border transition-all',
               voiceOn
-                ? 'bg-purple-600/80 border-purple-500 text-white'
+                ? 'bg-[#00FF9D]/80 border-[#00FF9D] text-black'
                 : 'bg-black/50 border-white/20 text-white/40'
             )}
             title={voiceOn ? 'Mute voice coach' : 'Enable voice coach'}
@@ -418,7 +428,7 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
                   </div>
                   <span className="text-[9px] font-mono text-white/30">{repState.currentDepth}%</span>
                 </div>
-                <div className="text-[9px] font-mono text-purple-400/80 capitalize">{repState.phase}</div>
+                <div className="text-[9px] font-mono text-[#00FF9D]/80 capitalize">{repState.phase}</div>
               </div>
             </div>
           </div>
@@ -490,7 +500,7 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
               className={cn(
                 'p-3 rounded-full border transition-all',
                 voiceOn
-                  ? 'bg-purple-600/30 border-purple-500/50 text-purple-300'
+                  ? 'bg-[#00FF9D]/20 border-[#00FF9D]/50 text-[#00FF9D]'
                   : 'bg-white/[0.05] border-white/10 text-white/30'
               )}
             >
@@ -532,7 +542,7 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
               value: repState
                 ? repState.phase.charAt(0).toUpperCase() + repState.phase.slice(1)
                 : '—',
-              color: 'text-purple-300',
+              color: 'text-[#00FF9D]',
             },
             {
               label: 'Issues',

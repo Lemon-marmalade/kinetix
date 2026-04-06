@@ -1,7 +1,44 @@
-// Pre-declare global Module object BEFORE pose.js loads.
-// MediaPipe's pose.js is an Emscripten IIFE that checks for an existing window.Module
-// and merges into it rather than creating a private local object.
-// Helper scripts (pose_solution_packed_assets_loader.js, etc.) run in global scope
-// and reference Module.CDN_URL — they can only find it if Module is on window.
-// This file must be loaded as a beforeInteractive script BEFORE pose.js.
-window.Module = window.Module || {};
+// Predeclare the globals MediaPipe pose.js populates before it appends helper scripts.
+// The packed-assets loader uses window.createMediapipeSolutionsPackedAssets as its Module object,
+// not window.Module. If that object is created late, its progress bookkeeping can be undefined
+// during XHR callbacks, which intermittently breaks pose startup.
+window.createMediapipeSolutionsWasm = window.createMediapipeSolutionsWasm || {};
+window.createMediapipeSolutionsPackedAssets = window.createMediapipeSolutionsPackedAssets || {
+  dataFileDownloads: {},
+  expectedDataFileDownloads: 0,
+};
+
+// MediaPipe's CDN loader can emit intermittent non-fatal bootstrap errors even when
+// pose results recover and the app works. Suppress only these known messages so
+// real application errors still surface normally.
+(function suppressBenignMediapipeBootstrapErrors() {
+  if (window.__movementCoachMediapipeErrorFilterInstalled) return;
+  window.__movementCoachMediapipeErrorFilterInstalled = true;
+
+  var isBenignMediapipeMessage = function (message) {
+    if (typeof message !== 'string') return false;
+    return (
+      message.includes('pose_solution_packed_assets.data') ||
+      message.includes("Cannot read properties of undefined (reading 'buffer')")
+    );
+  };
+
+  window.addEventListener('error', function (event) {
+    var message = event && event.message ? String(event.message) : '';
+    if (!isBenignMediapipeMessage(message)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }, true);
+
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event && event.reason;
+    var message =
+      typeof reason === 'string'
+        ? reason
+        : reason && typeof reason.message === 'string'
+          ? reason.message
+          : '';
+    if (!isBenignMediapipeMessage(message)) return;
+    event.preventDefault();
+  });
+})();

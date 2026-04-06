@@ -20,7 +20,7 @@ export default function FrameScrubber({ duration, currentTime, onChange, issueMa
     onChange(ratio * duration)
   }, [duration, onChange])
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+  const progress = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0 // cap at 100
 
   const fmt = (t: number) => {
     const m = Math.floor(t / 60).toString().padStart(2, '0')
@@ -37,7 +37,7 @@ export default function FrameScrubber({ duration, currentTime, onChange, issueMa
       >
         {/* Progress fill */}
         <div
-          className="absolute inset-y-0 left-0 bg-purple-500 rounded-full transition-none"
+          className="absolute inset-y-0 left-0 bg-[#00FF9D] rounded-full transition-none"
           style={{ width: `${progress}%` }}
         />
         {/* Playhead */}

@@ -259,7 +259,7 @@ export default function PoseOverlay({
                 onClick={() => setPlaybackRate(r)}
                 className={cn(
                   'px-2 py-1 rounded text-[10px] font-mono transition-colors',
-                  playbackRate === r ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  playbackRate === r ? 'bg-[#00FF9D] text-black' : 'bg-zinc-800 text-zinc-400 hover:text-white'
                 )}
               >
                 {r}x

@@ -97,7 +97,12 @@ export default function UploadPage() {
       if (!user) throw new Error('Not signed in')
       const sessionId = crypto.randomUUID()
       setSessionId(sessionId)
-      const videoUrl = await uploadVideo(selectedFile, user.id, sessionId, p => setProgress(p * 50))
+      const videoUrl = await uploadVideo(
+        selectedFile,
+        user.id,
+        sessionId,
+        p => setProgress(Math.min(50, Math.max(0, p * 0.5)))
+      )
       setVideoUrl(videoUrl)
       await supabase.from('sessions').insert({
         id: sessionId, user_id: user.id, movement_type: movementType,

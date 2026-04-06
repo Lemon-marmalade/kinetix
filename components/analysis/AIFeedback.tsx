@@ -29,6 +29,15 @@ function parseFeedback(text: string): { wellDone: string; recommendations: strin
   }
 }
 
+function getSpeakableFeedback(text: string): string {
+  const parsed = parseFeedback(text)
+  if (!parsed) return text
+
+  return [parsed.wellDone, parsed.recommendations]
+    .filter(Boolean)
+    .join(' ')
+}
+
 export default function AIFeedback({ feedback, loading, error, onRegenerate, onFeedbackReady }: AIFeedbackProps) {
   const [displayed, setDisplayed]   = useState('')
   const [typing, setTyping]         = useState(false)
@@ -74,8 +83,9 @@ export default function AIFeedback({ feedback, loading, error, onRegenerate, onF
     if (!feedback) return
     setTtsLoading(true)
     try {
+      const speakableText = getSpeakableFeedback(feedback)
       // speak() resolves when audio ends — setSpeaking while in flight
-      const playPromise = speak(feedback, true)
+      const playPromise = speak(speakableText, true)
       setSpeaking(true)
       setTtsLoading(false)
       await playPromise
@@ -96,8 +106,8 @@ export default function AIFeedback({ feedback, loading, error, onRegenerate, onF
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-purple-600/20 border border-purple-500/30 flex items-center justify-center">
-            <Bot className="w-3 h-3 text-purple-400" />
+          <div className="w-6 h-6 rounded-full bg-green-600/20 border border-green-500/30 flex items-center justify-center">
+            <Bot className="w-3 h-3 text-green-400" />
           </div>
           <h3 className="text-xs font-mono text-zinc-400 uppercase tracking-widest">AI Coach</h3>
         </div>
@@ -109,7 +119,7 @@ export default function AIFeedback({ feedback, loading, error, onRegenerate, onF
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-mono transition-all',
                 speaking
-                  ? 'bg-purple-600/20 border-purple-500/50 text-purple-300'
+                  ? 'bg-green-600/20 border-green-500/50 text-green-300'
                   : 'bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
               )}
               title={speaking ? 'Stop playback' : 'Read aloud'}
@@ -147,7 +157,7 @@ export default function AIFeedback({ feedback, loading, error, onRegenerate, onF
               {[0, 1, 2].map(i => (
                 <motion.div
                   key={i}
-                  className="w-1.5 h-1.5 bg-purple-500 rounded-full"
+                  className="w-1.5 h-1.5 bg-green-500 rounded-full"
                   animate={{ y: [0, -6, 0] }}
                   transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }}
                 />
@@ -185,7 +195,7 @@ export default function AIFeedback({ feedback, loading, error, onRegenerate, onF
         {(typing || (!parsed && displayed)) && (
           <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
             {displayed}
-            {typing && <span className="text-purple-400 font-bold">|</span>}
+            {typing && <span className="text-green-400 font-bold">|</span>}
           </p>
         )}
 
