@@ -42,3 +42,30 @@ window.createMediapipeSolutionsPackedAssets = window.createMediapipeSolutionsPac
     event.preventDefault();
   });
 })();
+
+(function suppressMediapipeGlLogs() {
+  if (window.__movementCoachMediapipeConsoleFilterInstalled) return;
+  window.__movementCoachMediapipeConsoleFilterInstalled = true;
+
+  var isBenignMediapipeLog = function (args) {
+    var message = Array.prototype.join.call(args, ' ');
+    return (
+      message.includes('gl_context_webgl.cc') ||
+      message.includes('gl_context.cc:359') ||
+      message.includes('gl_context.cc:1000')
+    );
+  };
+
+  var originalInfo = console.info;
+  var originalWarn = console.warn;
+
+  console.info = function () {
+    if (isBenignMediapipeLog(arguments)) return;
+    return originalInfo.apply(this, arguments);
+  };
+
+  console.warn = function () {
+    if (isBenignMediapipeLog(arguments)) return;
+    return originalWarn.apply(this, arguments);
+  };
+})();

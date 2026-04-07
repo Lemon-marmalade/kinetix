@@ -1,7 +1,0 @@
-{
-  "name": "PosePerfect AI",
-  "description": "3D pose analysis and retargeting for sports and physical therapy using AI-powered motion tracking.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}

@@ -118,7 +118,10 @@ export const voiceCoach = {
 
   onStop(repCount: number) {
     const repWord = repCount === 1 ? 'rep' : 'reps'
-    speak(`Session done. You completed ${repCount} ${repWord}. Really solid work today.`, true).catch(() => {})
+    const outro = repCount > 0
+      ? `Session done. You completed ${repCount} ${repWord}. Really solid work today.`
+      : `Session done. You completed ${repCount} ${repWord}. Let's reset and try another set when you're ready.`
+    speak(outro, true).catch(() => {})
   },
 
   stop() {

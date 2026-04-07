@@ -77,7 +77,7 @@ Kinetix focuses on movement quality, not just motion tracking.
 
 Help people move better, train smarter, and stay injury-free.
 
-## How to Run Locally
+## Setup
 
 **Prerequisites:**  Node.js
 

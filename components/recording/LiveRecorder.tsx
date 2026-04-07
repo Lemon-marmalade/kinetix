@@ -48,6 +48,7 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
   const elapsedRef    = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastLandmarksRef = useRef<PoseLandmark[] | null>(null)
   const framesSentRef    = useRef(0)
+  const sendInFlightRef  = useRef(false)
   const sendTimestampRef = useRef(0)   // timestamp of the frame currently in-flight to MediaPipe
   const fpsCountRef   = useRef(0)
   const lastFpsRef    = useRef(Date.now())
@@ -115,6 +116,8 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
     setError(null)
     allFramesRef.current = []
     frameIdxRef.current = 0
+    framesSentRef.current = 0
+    sendInFlightRef.current = false
     canvasSizedRef.current = false
     repCounterRef.current = createRepCounter(movementType)
 
@@ -223,10 +226,19 @@ export default function LiveRecorder({ movementType, onRecordingComplete }: Live
         // Send every 3rd frame to pose (~10fps detection at 30fps display).
         // Capture the send timestamp HERE (before the async gap) so onResults
         // stores the timestamp of the actual frame, not of when results came back.
-        if (framesSentRef.current % 3 === 0 && video.readyState >= 2) {
+        if (framesSentRef.current % 3 === 0 && video.readyState >= 2 && !sendInFlightRef.current) {
           sendTimestampRef.current = video.currentTime
+          sendInFlightRef.current = true
           ;(pose as { send: (i: { image: HTMLVideoElement }) => Promise<void> })
-            .send({ image: video }).catch(() => {})
+            .send({ image: video })
+            .finally(() => {
+              sendInFlightRef.current = false
+            })
+            .catch((err) => {
+              console.error('[LiveRecorder] MediaPipe send failed:', err)
+              setError(err instanceof Error ? err.message : 'MediaPipe failed while processing frames.')
+              setState('error')
+            })
         }
         framesSentRef.current++
 
